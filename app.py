@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
-from xml.sax.saxutils import escape as xml_escape
+from xml.sax.saxutils import escape as xml_escape, unescape as xml_unescape
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -170,6 +170,42 @@ OCI_PRODUCTS_API_BASE = "https://apexapps.oracle.com/pls/apex/cetools/api/v1/pro
 DOWNLOADS_DIR = Path("downloads")
 RVTOOLS_DIR = Path("rvtools")
 EXPORTS_DIR = DOWNLOADS_DIR / "exports"
+PRESENTATION_EXPORTS_DIR = EXPORTS_DIR / "presentations"
+PRESENTATION_TEMPLATE_NAMES = {
+    "compute": "OCI Compute Migration.pptx",
+    "ocvs": "Oracle Cloud VMware Solution.pptx",
+    "dr": "Disaster Recovery.pptx",
+    "capacity": "Capacity Expansion with OCVS.pptx",
+    "hybrid": "OCI Hybrid.pptx",
+}
+
+BUSINESS_SCENARIOS = (
+    {
+        "id": "compute",
+        "name": "OCI Compute Migration",
+        "description": "Migrate VMware workloads to OCI native services.",
+        "tags": ("OCI Native", "OCVS", "Hybrid"),
+    },
+    {
+        "id": "ocvs",
+        "name": "Move to OCVS",
+        "description": "Lift and shift VMware workloads to Oracle Cloud VMware Solution.",
+        "tags": (),
+    },
+    {
+        "id": "dr",
+        "name": "Disaster Recovery with OCVS",
+        "description": "Protect workloads using Oracle Cloud VMware Solution.",
+        "tags": (),
+    },
+    {
+        "id": "capacity",
+        "name": "Capacity Expansion with OCVS",
+        "description": "Extend an existing VMware environment into OCI.",
+        "tags": (),
+    },
+)
+BUSINESS_SCENARIO_BY_ID = {item["id"]: item for item in BUSINESS_SCENARIOS}
 
 # Currencies exposed by the local assessment UI.
 SUPPORTED_CURRENCIES = [
@@ -198,7 +234,7 @@ NATIVE_PAGE_SIZE_OPTIONS = (25, 50, 100)
 NATIVE_SUPPORT_FILTERS = {"all", "supported", "remediation", "review"}
 NATIVE_SEARCH_MAX_LENGTH = 200
 STEP4_UNSAVED_READINESS_SESSION_KEY = "_step4_unsaved_scenario_changes"
-STEP4_ALLOWED_ACTIONS = {"save", "export_excel"}
+STEP4_ALLOWED_ACTIONS = {"save", "export_excel", "generate_presentation"}
 STEP4_ACTIVE_SCENARIOS = {"native", "ocvs", "hybrid", "price"}
 RESULT_RECOMMENDATION_VALUES = {"", "native", "ocvs", "hybrid"}
 RESULT_RECOMMENDATION_FIELDS = {
@@ -409,6 +445,72 @@ def _cleanup_legacy_session_keys() -> None:
 def normalize_customer_name(value: Any) -> str:
     clean = re.sub(r"\s+", " ", str(value or "")).strip()
     return clean[:120]
+
+
+def normalize_business_scenario(value: Any) -> str:
+    scenario_id = str(value or "").strip().lower()
+    return scenario_id if scenario_id in BUSINESS_SCENARIO_BY_ID else ""
+
+
+def selected_business_scenario() -> dict[str, Any] | None:
+    scenario_id = normalize_business_scenario(session.get("business_scenario", "")) or "compute"
+    return BUSINESS_SCENARIO_BY_ID.get(scenario_id)
+
+
+def business_scenario_ui() -> dict[str, Any]:
+    """Small presentation layer over the existing assessment workflow."""
+    scenario = selected_business_scenario() or BUSINESS_SCENARIO_BY_ID["compute"]
+    scenario_id = str(scenario["id"])
+    ocvs_only = scenario_id in {"ocvs", "dr", "capacity"}
+    values = {
+        "id": scenario_id,
+        "name": str(scenario["name"]),
+        "ocvs_only": ocvs_only,
+        "inventory_eyebrow": "Workload scope and initial placement",
+        "inventory_title": "Inventory Review",
+        "inventory_instruction": "Select the VMs included in the assessment.",
+        "scenario_title": "Migration to OCVS",
+        "results_title": "OCVS migration results",
+        "results_intro": "Review OCVS sizing, pricing completeness, and readiness before recording the specialist decision.",
+    }
+    if scenario_id == "dr":
+        values.update(
+            inventory_eyebrow="Workload protection scope",
+            inventory_title="Select VMs to Protect",
+            inventory_instruction="Select the VMware VMs that require OCVS disaster-recovery protection.",
+            scenario_title="Disaster Recovery with OCVS",
+            results_title="OCVS DR results",
+            results_intro="Review the OCVS disaster-recovery sizing and modeled run-rate for the protected VM scope.",
+        )
+    elif scenario_id == "capacity":
+        values.update(
+            inventory_eyebrow="Expansion workload scope",
+            inventory_title="Select VMs for Capacity Expansion",
+            inventory_instruction="Select the VMware VMs that drive the OCVS capacity-expansion requirement.",
+            scenario_title="Expand to OCVS",
+            results_title="OCVS capacity expansion results",
+            results_intro="Review the OCVS expansion sizing and modeled run-rate for the selected workload.",
+        )
+    elif scenario_id == "ocvs":
+        values["inventory_instruction"] = "Select the VMware VMs to move to Oracle Cloud VMware Solution."
+    return values
+
+
+def resolve_presentation_template(
+    business_scenario: dict[str, Any],
+    assessor_recommendation: Any,
+) -> tuple[Path, str]:
+    """Return the local template and customer-facing scenario name for the export."""
+    scenario_id = str(business_scenario.get("id") or "")
+    recommendation = str(assessor_recommendation or "").strip().lower()
+    if scenario_id == "compute" and recommendation in {"ocvs", "hybrid"}:
+        template_id = recommendation
+        scenario_name = "OCI Hybrid" if recommendation == "hybrid" else "Oracle Cloud VMware Solution"
+    else:
+        template_id = scenario_id
+        scenario_name = str(business_scenario.get("name") or "Assessment")
+    template_name = PRESENTATION_TEMPLATE_NAMES.get(template_id, "")
+    return Path("presentation_templates") / template_name, scenario_name
 
 
 def customer_file_slug(customer_name: str) -> str:
@@ -1057,6 +1159,7 @@ def build_saved_assessment_snapshot(name: Any, notes: Any, assessment_id: str = 
         "saved_at": saved_at,
         "updated_at": now,
         "customer_name": normalize_customer_name(session.get("customer_name", "")),
+        "business_scenario": normalize_business_scenario(session.get("business_scenario", "")),
         "selected_currency": str(session.get("selected_currency", "") or "").upper().strip(),
         "selected_pricelist_file": str(session.get("selected_pricelist_file", "") or "").strip().replace("\\", "/"),
         "selected_rvtools_file": str(session.get("selected_rvtools_file", "") or "").strip().replace("\\", "/"),
@@ -1109,6 +1212,12 @@ def stage_saved_assessment_load(
         staged_session["customer_name"] = customer_name
     else:
         staged_session.pop("customer_name", None)
+
+    business_scenario = normalize_business_scenario(snapshot.get("business_scenario", ""))
+    if business_scenario:
+        staged_session["business_scenario"] = business_scenario
+    else:
+        staged_session.pop("business_scenario", None)
 
     price_file = str(snapshot.get("selected_pricelist_file") or "").strip().replace("\\", "/")
     selected_currency = str(snapshot.get("selected_currency") or "").upper().strip()
@@ -1245,6 +1354,7 @@ def reset_active_assessment_state() -> None:
     """Clear the active workspace while keeping the selected OCI pricing context."""
     keys_to_clear = (
         "customer_name",
+        "business_scenario",
         "selected_rvtools_file",
         "rvtools_file_info",
         "rvtools_import_summary",
@@ -4676,6 +4786,7 @@ def build_workspace_context(
     if not isinstance(workspace_readiness.get("stages"), dict):
         workspace_readiness["stages"] = {}
 
+    scenario_ui = business_scenario_ui()
     selected_inventory_source = bool(str(session.get("selected_rvtools_file", "")).strip())
     app_state = load_app_state()
     selected_vm_names = app_state.get("selected_vm_names", [])
@@ -4705,6 +4816,14 @@ def build_workspace_context(
     readiness_stages = workspace_readiness["stages"]
     workspace_stages: list[dict[str, Any]] = []
     for mapped_id, mapped_stage in WORKSPACE_STAGE_MAP.items():
+        stage_name = str(mapped_stage["name"])
+        if scenario_ui["ocvs_only"]:
+            if mapped_id == "inventory":
+                stage_name = str(scenario_ui["inventory_title"])
+            elif mapped_id == "scenarios":
+                stage_name = str(scenario_ui["scenario_title"])
+            elif mapped_id == "results":
+                stage_name = str(scenario_ui["results_title"])
         mapped_readiness = readiness_stages.get(mapped_id, {})
         if isinstance(mapped_readiness, dict):
             mapped_status = str(mapped_readiness.get("state", "available"))
@@ -4725,7 +4844,7 @@ def build_workspace_context(
             {
                 "id": mapped_id,
                 "number": mapped_stage["number"],
-                "name": mapped_stage["name"],
+                "name": stage_name,
                 "url": url_for(mapped_stage["endpoint"], **mapped_stage["url_values"]),
                 "is_current": is_current,
                 "available": is_available,
@@ -4736,6 +4855,14 @@ def build_workspace_context(
         )
 
     stage = WORKSPACE_STAGE_MAP[stage_id]
+    workspace_stage_name = str(stage["name"])
+    if scenario_ui["ocvs_only"]:
+        if stage_id == "inventory":
+            workspace_stage_name = str(scenario_ui["inventory_title"])
+        elif stage_id == "scenarios":
+            workspace_stage_name = str(scenario_ui["scenario_title"])
+        elif stage_id == "results":
+            workspace_stage_name = str(scenario_ui["results_title"])
     previous_id = str(stage["previous_stage"])
     continue_id = str(stage["continue_stage"])
     previous_url = ""
@@ -4770,7 +4897,7 @@ def build_workspace_context(
             "workspace_stage": stage_id,
             "workspace_stage_number": stage["number"],
             "workspace_stage_count": len(WORKSPACE_STAGE_MAP),
-            "workspace_stage_name": stage["name"],
+            "workspace_stage_name": workspace_stage_name,
             "workspace_stages": workspace_stages,
             "workspace_readiness": workspace_readiness,
             "readiness": workspace_readiness,
@@ -6763,6 +6890,132 @@ def build_results_page_context(
             session.get("active_assessment_notes", "")
         ),
     }
+
+
+def _presentation_number(value: Any) -> str:
+    try:
+        return f"{float(value or 0):,.0f}"
+    except (TypeError, ValueError):
+        return "0"
+
+
+def _presentation_tb(value: Any) -> str:
+    try:
+        return f"{float(value or 0) / 1024.0:,.1f} TB"
+    except (TypeError, ValueError):
+        return "0.0 TB"
+
+
+def _presentation_tb_number(value: Any) -> str:
+    """Format a GB value as a numeric TB value for templates that own the unit."""
+    try:
+        return f"{float(value or 0) / 1024.0:,.1f}"
+    except (TypeError, ValueError):
+        return "0.0"
+
+
+def _replace_presentation_named_text(xml_text: str, replacements: dict[str, str]) -> str:
+    normalized = {str(key).lower(): str(value) for key, value in replacements.items()}
+
+    def replace_shape(match: re.Match[str]) -> str:
+        shape = match.group(0)
+        name = re.search(r'<p:cNvPr\b[^>]*\bname="([^"]*)"', shape)
+        if not name:
+            return shape
+        value = normalized.get(xml_unescape(name.group(1)).strip().lower())
+        if value is None:
+            return shape
+        values = value.splitlines() or [""]
+        index = 0
+
+        def replace_text(text_match: re.Match[str]) -> str:
+            nonlocal index
+            replacement = values[index] if index < len(values) else ""
+            index += 1
+            return f"{text_match.group(1)}{xml_escape(replacement)}{text_match.group(3)}"
+
+        return re.sub(r"(<a:t[^>]*>)(.*?)(</a:t>)", replace_text, shape, flags=re.DOTALL)
+
+    return re.sub(r"<p:sp\b.*?</p:sp>", replace_shape, xml_text, flags=re.DOTALL)
+
+
+def build_customer_presentation_pptx(
+    *, template_path: Path, output_path: Path, customer_name: str, business_scenario: dict[str, Any],
+    analysis: dict[str, Any], ocvs_price: dict[str, Any], generated_at: str,
+) -> None:
+    """Fill the imported editable OCVS template with VMware2OCI assessment results."""
+    workload = analysis.get("workload_summary", {})
+    selected_ocvs = ocvs_price.get("selected", {}) if isinstance(ocvs_price, dict) else {}
+    date_value = datetime.fromisoformat(generated_at).strftime("%b %d, %Y")
+    storage_gb = workload.get("total_storage_gb", 0)
+    host_shape = str(selected_ocvs.get("shape") or "Not provided")
+    host_count = _presentation_number(selected_ocvs.get("host_count"))
+    storage = _presentation_tb(float(selected_ocvs.get("total_raw_storage_tb", 0) or 0) * 1024)
+    uses_numeric_storage_placeholders = str(business_scenario.get("id") or "") in {
+        "ocvs",
+        "dr",
+        "capacity",
+    }
+    workload_storage = (
+        _presentation_tb_number(storage_gb)
+        if uses_numeric_storage_placeholders
+        else _presentation_tb(storage_gb)
+    )
+    infrastructure_storage = (
+        # The assessment models the selected workload capacity in GB.  Dense
+        # profiles expose per-host NVMe data, not total_raw_storage_tb, so
+        # that obsolete key would otherwise turn the slide into 0.0 TB.
+        workload_storage
+        if uses_numeric_storage_placeholders
+        else storage
+    )
+    replacements = {
+        "editable-customer-value": customer_name or "Not provided",
+        "editable-date-value": date_value,
+        "editable-prepared-by-value": f"VMware to OCI Assessment — {business_scenario.get('name') or 'Assessment'}",
+        "editable-top-vms": _presentation_number(workload.get("vm_count")),
+        "editable-top-vms-powered-on": _presentation_number(workload.get("powered_on_count")),
+        "editable-top-vms-powered-off": _presentation_number(workload.get("powered_off_count")),
+        "editable-top-vcpus": _presentation_number(workload.get("total_vcpus")),
+        "editable-top-vram": _presentation_number(workload.get("total_memory_gb")),
+        "editable-top-storage": workload_storage,
+        "editable-total-vms": _presentation_number(workload.get("vm_count")),
+        "editable-total-vms-powered-on": _presentation_number(workload.get("powered_on_count")),
+        "editable-total-vms-powered-off": _presentation_number(workload.get("powered_off_count")),
+        "editable-total-vcpus": _presentation_number(workload.get("total_vcpus")),
+        "editable-total-vram": _presentation_number(workload.get("total_memory_gb")),
+        "editable-total-storage": workload_storage,
+        "editable-analysis-day": datetime.fromisoformat(generated_at).strftime("%d"),
+        "editable-analysis-year": datetime.fromisoformat(generated_at).strftime("%Y"),
+        "editable-top-sddcs": "1" if selected_ocvs else "0",
+        "editable-top-clusters": _presentation_number(selected_ocvs.get("cluster_count")),
+        "editable-top-hosts": host_count,
+        "editable-top-shape": host_shape,
+        "editable-top-storage": infrastructure_storage,
+        "editable-left-sddcs": "1" if selected_ocvs else "0",
+        "editable-left-clusters": _presentation_number(selected_ocvs.get("cluster_count")),
+        "editable-left-hosts": host_count,
+        "editable-left-shape": host_shape,
+        "editable-left-storage": infrastructure_storage,
+        "editable-production-hosts": host_count,
+        "editable-production-shape": host_shape,
+        "editable-production-storage": infrastructure_storage,
+    }
+    tokens = {
+        "CUSTOMER": customer_name or "Not provided", "ASSESSMENT_DATE": date_value,
+        "SCENARIO": str(business_scenario.get("name") or "Assessment"),
+        "VM_COUNT": _presentation_number(workload.get("vm_count")),
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(template_path, "r") as source, zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as target:
+        for item in source.infolist():
+            data = source.read(item.filename)
+            if item.filename.endswith(".xml") or item.filename.endswith(".rels"):
+                text = data.decode("utf-8", errors="ignore")
+                for key, value in tokens.items():
+                    text = text.replace(f"{{{{{key}}}}}", xml_escape(value))
+                data = _replace_presentation_named_text(text, replacements).encode("utf-8")
+            target.writestr(item, data)
 
 
 def _xlsx_currency_format_code(currency_code: str) -> str:
@@ -8819,6 +9072,8 @@ def index() -> Any:
                 active_assessment_id=active_assessment_id,
                 active_assessment_name=active_assessment_name,
                 active_assessment_notes=active_assessment_notes,
+                business_scenarios=BUSINESS_SCENARIOS,
+                selected_business_scenario=normalize_business_scenario(session.get("business_scenario", "")),
             ),
         )
 
@@ -8964,7 +9219,15 @@ def index() -> Any:
             flash(success_message, "rvtools_success")
             return True
 
-        if action == "export_assessment":
+        if action == "select_business_scenario":
+            scenario_id = normalize_business_scenario(request.form.get("business_scenario", ""))
+            if not scenario_id:
+                flash("Choose a valid business scenario.", "error")
+            else:
+                session["business_scenario"] = scenario_id
+                flash("Business scenario selected.", "success")
+
+        elif action == "export_assessment":
             try:
                 requested_name = request.form.get(
                     "assessment_name",
@@ -9359,6 +9622,8 @@ def index() -> Any:
 @app.route("/step3", methods=["GET", "POST"])
 def step3() -> str:
     _cleanup_legacy_session_keys()
+    scenario_ui = business_scenario_ui()
+    ocvs_only = bool(scenario_ui["ocvs_only"])
 
     selected_rvtools_file = str(session.get("selected_rvtools_file", ""))
     if not selected_rvtools_file:
@@ -9420,6 +9685,8 @@ def step3() -> str:
                     for vm_name in candidate_names
                 },
             )
+            if ocvs_only:
+                candidate_placements = {vm_name: "ocvs" for vm_name in candidate_names}
             inventory_errors.extend(keyed_errors)
 
             submitted_acknowledgments = set(request.form.getlist("acknowledged_warning_ids"))
@@ -9453,7 +9720,7 @@ def step3() -> str:
                         if readiness_errors:
                             inventory_errors.extend(readiness_errors)
                         else:
-                            return redirect(url_for("step4", tab="native"))
+                            return redirect(url_for("step4", tab="ocvs" if ocvs_only else "native"))
         else:
             chosen_vm_names = request.form.getlist("vm_names")
             single_vm_name = str(request.form.get("vm_name") or "").strip()
@@ -9510,6 +9777,8 @@ def step3() -> str:
                         if saved_placement in HYBRID_PLACEMENT_VALUES
                         else default_inventory_placement(vm_index[vm_name], supported_signatures)
                     )
+                if ocvs_only:
+                    candidate_placements = {vm_name: "ocvs" for vm_name in selected_vm_names}
                 current_acknowledgments = app_state.get("acknowledged_warning_ids", [])
                 acknowledged_set = set(current_acknowledgments) if isinstance(current_acknowledgments, list) else set()
                 candidate_state = copy.deepcopy(app_state)
@@ -9545,6 +9814,8 @@ def step3() -> str:
     saved_placements = app_state.get("step4_hybrid_placements", {})
     if not isinstance(saved_placements, dict):
         saved_placements = {}
+    if ocvs_only:
+        saved_placements = {vm_name: "ocvs" for vm_name in selected_vm_names}
     acknowledged_warning_ids = [
         warning_id
         for warning_id in app_state.get("acknowledged_warning_ids", [])
@@ -9608,6 +9879,8 @@ def step3() -> str:
             placement = default_inventory_placement(vm, supported_signatures)
         if vm_name in placement_errors:
             placement = default_inventory_placement(vm, supported_signatures)
+        if ocvs_only:
+            placement = "ocvs"
         power_state = str(vm.get("power_state") or "Unknown")
         power_key = power_state.strip().lower().replace("powered", "")
         if power_key not in {"on", "off"}:
@@ -9687,6 +9960,7 @@ def step3() -> str:
             workspace_continue_submit_name="continue_to_scenarios",
             workspace_continue_submit_value="1",
             workspace_continue_label="Save & Continue",
+            scenario_ui=scenario_ui,
         ),
     )
 
@@ -9694,11 +9968,15 @@ def step3() -> str:
 @app.route("/step4", methods=["GET", "POST"])
 def step4() -> str:
     _cleanup_legacy_session_keys()
+    scenario_ui = business_scenario_ui()
+    ocvs_only = bool(scenario_ui["ocvs_only"])
     has_unsaved_scenario_changes = False
     requested_scenario = normalize_step4_scenario_tab(
         request.args.get("tab", "native"),
         "native",
     )
+    if ocvs_only and requested_scenario != "price":
+        requested_scenario = "ocvs"
     if request.method == "GET" and requested_scenario == "paths":
         return redirect(url_for("step3"))
 
@@ -9780,6 +10058,9 @@ def step4() -> str:
         posted_scenario = str(
             submitted_step4_scalars.get("active_scenario", "native")
         )
+        if ocvs_only and posted_scenario != "price":
+            posted_scenario = "ocvs"
+            submitted_step4_scalars["active_scenario"] = "ocvs"
         if scalar_errors:
             session[STEP4_UNSAVED_READINESS_SESSION_KEY] = True
             flash(
@@ -10467,6 +10748,8 @@ def step4() -> str:
 
         if action == "export_excel":
             export_format = "excel"
+        elif action == "generate_presentation":
+            export_format = "presentation"
         elif action == "save":
             flash("Migration path settings saved.", "success")
             if continue_to_results:
@@ -10541,6 +10824,10 @@ def step4() -> str:
         build_scenario_view("ocvs", scenario_view_context),
         build_scenario_view("hybrid", scenario_view_context),
     ]
+    if ocvs_only:
+        scenario_views = [view for view in scenario_views if view["id"] == "ocvs"]
+        scenario_views[0]["title"] = str(scenario_ui["scenario_title"])
+        scenario_views[0]["intro"] = str(scenario_ui["inventory_instruction"])
     step4_last_updated_at = str(app_state.get("step4_last_updated_at", "") or "")
     if not step4_last_updated_at and snapshot.get("saved_at") and snapshot_source == source_vinfo_csv:
         step4_last_updated_at = str(snapshot.get("saved_at"))
@@ -10623,6 +10910,39 @@ def step4() -> str:
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             max_age=0,
         )
+    if export_format == "presentation":
+        business_scenario = selected_business_scenario()
+        if not business_scenario:
+            flash("Select a Business Scenario in Setup before generating a presentation.", "error")
+            return redirect(step4_tab_redirect("price"))
+        template_path, presentation_scenario_name = resolve_presentation_template(
+            business_scenario,
+            app_state.get("assessor_recommendation", ""),
+        )
+        if not template_path.is_file():
+            flash(f"The presentation template {template_path.name} is not available in this installation.", "error")
+            return redirect(step4_tab_redirect("price"))
+        generated_at = datetime.now().isoformat(timespec="seconds")
+        scenario_label = customer_file_slug(presentation_scenario_name)
+        filename = build_export_filename(customer_name, f"{scenario_label}_presentation", "pptx")
+        export_path = PRESENTATION_EXPORTS_DIR / filename
+        build_customer_presentation_pptx(
+            template_path=template_path,
+            output_path=export_path,
+            customer_name=customer_name,
+            business_scenario={**business_scenario, "name": presentation_scenario_name},
+            analysis=analysis,
+            ocvs_price=ocvs_price,
+            generated_at=generated_at,
+        )
+        session["last_presentation_file"] = str(export_path.resolve())
+        return send_file(
+            export_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            max_age=0,
+        )
     native_readiness = readiness.get("scenarios", {}).get("native", {})
     if not isinstance(native_readiness, dict):
         native_readiness = {}
@@ -10665,6 +10985,14 @@ def step4() -> str:
         hybrid_ocvs_customized,
     )
     results = build_results_page_context(readiness, scenario_views, app_state)
+    if ocvs_only:
+        results["scenarios"] = [scenario for scenario in results["scenarios"] if scenario["id"] == "ocvs"]
+        if results["scenarios"]:
+            results["scenarios"][0]["title"] = str(scenario_ui["results_title"])
+            results["scenarios"][0]["intro"] = str(scenario_ui["results_intro"])
+            results["scenarios"][0]["price_rank"] = 1
+        results["recommendation_options"] = [{"value": "ocvs", "label": "OCVS"}]
+        results["recommendation"] = "ocvs"
 
     return render_template(
         "step4.html",
@@ -10727,6 +11055,7 @@ def step4() -> str:
             customer_name=customer_name,
             active_scenario=active_scenario,
             results=results,
+            scenario_ui=scenario_ui,
             workspace_continue_form_id="step4-form" if active_scenario != "price" else "",
             workspace_continue_submit_name="continue_to_results",
             workspace_continue_submit_value="1",
@@ -10777,6 +11106,9 @@ def scenario_page(scenario_id: str) -> str:
     if scenario_id not in {"native", "ocvs", "hybrid", "price"}:
         flash("Please select a valid migration path.", "error")
         return redirect(url_for("step3"))
+
+    if business_scenario_ui()["ocvs_only"] and scenario_id in {"native", "hybrid"}:
+        return redirect(step4_tab_redirect("ocvs"))
 
     return redirect(step4_tab_redirect(scenario_id))
 

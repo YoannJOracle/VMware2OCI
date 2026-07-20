@@ -51,6 +51,48 @@
       color: var(--workspace-muted);
       line-height: 1.45;
     }
+    .business-scenarios { padding-top: 0; }
+    .business-scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .business-scenario-card {
+      position: relative;
+      min-height: 184px;
+      padding: 18px;
+      border: 1px solid var(--workspace-line-strong);
+      border-radius: var(--workspace-radius);
+      background: var(--workspace-surface);
+      color: var(--workspace-text);
+      text-align: left;
+      cursor: pointer;
+    }
+    .business-scenario-card:hover,
+    .business-scenario-card:focus-visible {
+      border-color: var(--workspace-primary);
+      background: var(--workspace-primary-soft);
+    }
+    .business-scenario-card.is-selected {
+      border: 2px solid var(--workspace-primary);
+      box-shadow: inset 0 0 0 1px var(--workspace-primary-soft);
+    }
+    .business-scenario-card__check {
+      position: absolute; top: 12px; right: 12px;
+      display: none; width: 22px; height: 22px;
+      place-items: center; border-radius: 50%; background: var(--workspace-primary); color: #fff;
+      font-size: 13px; font-weight: 800;
+    }
+    .business-scenario-card.is-selected .business-scenario-card__check { display: grid; }
+    .business-scenario-card__icon {
+      display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 13px;
+      border-radius: 50%; background: var(--workspace-primary-soft); color: var(--workspace-primary);
+      font-size: 20px; font-weight: 800;
+    }
+    .business-scenario-card h3 { margin: 0 0 8px; font-size: 15px; line-height: 1.3; }
+    .business-scenario-card p { margin: 0; color: var(--workspace-muted); line-height: 1.42; }
+    .business-scenario-card__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+    .business-scenario-card__tags span { padding: 3px 6px; border-radius: 999px; background: var(--workspace-primary-soft); color: var(--workspace-primary-hover); font-size: 11px; font-weight: 800; }
     .setup-error-summary {
       margin: 0 0 18px;
       padding: 14px 16px;
@@ -451,6 +493,7 @@
       opacity: .58;
     }
     @media (max-width: 760px) {
+      .business-scenario-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .setup-intro,
       .setup-section__header {
         display: grid;
@@ -465,6 +508,7 @@
       .manual-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 520px) {
+      .business-scenario-grid { grid-template-columns: 1fr; }
       .setup-form--identity,
       .pricing-controls,
       .inventory-upload-grid,
@@ -512,6 +556,34 @@
         </ul>
       </div>
     {% endif %}
+
+    <section id="business-scenario" class="setup-section business-scenarios" aria-labelledby="business-scenario-title">
+      <div class="setup-section__header">
+        <h2 id="business-scenario-title">Business Scenario</h2>
+        <p>Select the customer project type. The selection is retained with the assessment and determines the presentation context.</p>
+      </div>
+      <form method="post" class="business-scenario-grid">
+        <input type="hidden" name="action" value="select_business_scenario" />
+        {% for scenario in business_scenarios %}
+          <button
+            class="business-scenario-card {{ 'is-selected' if selected_business_scenario == scenario.id else '' }}"
+            type="submit"
+            name="business_scenario"
+            value="{{ scenario.id }}"
+          >
+            <span class="business-scenario-card__check" aria-hidden="true">✓</span>
+            <span class="business-scenario-card__icon" aria-hidden="true">{{ ['☁', '◆', '⌁', '↗'][loop.index0] }}</span>
+            <h3>{{ scenario.name }}</h3>
+            <p>{{ scenario.description }}</p>
+            {% if scenario.tags %}
+              <span class="business-scenario-card__tags">
+                {% for tag in scenario.tags %}<span>{{ tag }}</span>{% endfor %}
+              </span>
+            {% endif %}
+          </button>
+        {% endfor %}
+      </form>
+    </section>
 
     <section id="assessment-identity" class="setup-section" aria-labelledby="assessment-identity-title">
       <div class="setup-section__header">

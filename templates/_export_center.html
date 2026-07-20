@@ -58,5 +58,10 @@
       <input type="hidden" name="active_scenario" value="price" />
       <button type="submit" class="results-button">{{ results.excel_export_label }}</button>
     </form>
+    <form method="post" action="{{ url_for('step4') }}">
+      <input type="hidden" name="action" value="generate_presentation" />
+      <input type="hidden" name="active_scenario" value="price" />
+      <button type="submit" class="results-button">Generate Presentation</button>
+    </form>
   </div>
 </section>

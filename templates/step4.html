@@ -817,14 +817,14 @@
 
     {% set initial_titles = {
       'native': 'Migration to OCI Native',
-      'ocvs': 'Migration to OCVS',
+      'ocvs': scenario_ui.scenario_title,
       'hybrid': 'Migration to Hybrid Platform',
-      'price': 'Results & Export'
+      'price': scenario_ui.results_title if scenario_ui.ocvs_only else 'Results & Export'
     } %}
     <h1 id="step4-main-title">{{ initial_titles.get(active_scenario, 'Migration to OCI Native') }}</h1>
 
     {% if active_scenario == 'price' %}
-      {% include "_workload_profile.html" %}
+      {% if not scenario_ui.ocvs_only %}{% include "_workload_profile.html" %}{% endif %}
       {% include "_results_comparison.html" %}
       {% include "_export_center.html" %}
     {% else %}
@@ -843,6 +843,7 @@
               aria-controls="scenario-panel-{{ view.id }}"
               tabindex="{{ '0' if active_scenario == view.id else '-1' }}"
               data-scenario-tab="{{ view.id }}"
+              data-scenario-title="{{ scenario_ui.scenario_title if scenario_ui.ocvs_only and view.id == 'ocvs' else '' }}"
               data-dirty-navigation
             >
               {{ 'Native' if view.id == 'native' else view.title }}
@@ -850,6 +851,18 @@
           {% endfor %}
           </div>
         </div>
+      {% endif %}
+      {# Native owns the full editor form in the standard workflow. OCVS-only
+         business scenarios do not render that panel, so provide the same
+         form owner for their externally associated controls and actions. #}
+      {% if scenario_ui.ocvs_only %}
+        <form
+          id="step4-form"
+          method="post"
+          action="{{ url_for('step4') }}"
+          data-scenario-form
+          data-scenario-clean="true"
+        ></form>
       {% endif %}
       <input type="hidden" id="active_scenario" name="active_scenario" value="{{ active_scenario }}" form="step4-form" />
     </div>

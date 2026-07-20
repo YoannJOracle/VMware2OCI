@@ -76,8 +76,9 @@
       panel.hidden = !selected;
     });
     if (activeScenarioInput) activeScenarioInput.value = scenarioId;
-    if (mainTitle) mainTitle.textContent = titleByScenario[scenarioId] || "Scenario Configuration";
-    document.title = `VMware to OCI Migration Assessment - ${titleByScenario[scenarioId] || "Scenario Configuration"}`;
+    const scenarioTitle = tab.dataset.scenarioTitle || titleByScenario[scenarioId] || "Scenario Configuration";
+    if (mainTitle) mainTitle.textContent = scenarioTitle;
+    document.title = `VMware to OCI Migration Assessment - ${scenarioTitle}`;
     if (updateUrl) {
       const url = new URL(window.location.href);
       url.search = "";
