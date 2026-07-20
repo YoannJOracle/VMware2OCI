@@ -1,3 +1,4 @@
+{% set scenario_ui = scenario_ui|default({'ocvs_only': false}) %}
 <section
   id="scenario-panel-price"
   class="results-comparison"
@@ -8,8 +9,8 @@
   <header class="results-heading">
     <div>
       <p class="results-eyebrow">Assessment results</p>
-      <h2>Migration path comparison</h2>
-      <p>Review technical fit, pricing completeness, and modeled amounts independently before recording the specialist decision.</p>
+      <h2>{{ scenario_ui.results_title if scenario_ui.ocvs_only else 'Migration path comparison' }}</h2>
+      <p>{{ scenario_ui.results_intro if scenario_ui.ocvs_only else 'Review technical fit, pricing completeness, and modeled amounts independently before recording the specialist decision.' }}</p>
     </div>
     <div class="results-readiness results-readiness--{{ results.overall_display_state }}" role="status">
       <span class="results-readiness__indicator" aria-hidden="true"></span>
@@ -93,7 +94,7 @@
         <section class="result-detail-section" aria-labelledby="result-{{ scenario.id }}-placement">
           <h3 id="result-{{ scenario.id }}-placement">Placement split</h3>
           <div class="result-placement">
-            <span><strong>{{ "{:,}".format(scenario.native_vm_count) }}</strong> Native</span>
+            {% if not scenario_ui.ocvs_only %}<span><strong>{{ "{:,}".format(scenario.native_vm_count) }}</strong> Native</span>{% endif %}
             <span><strong>{{ "{:,}".format(scenario.ocvs_vm_count) }}</strong> OCVS</span>
             <span><strong>{{ "{:,}".format(scenario.workload_count) }}</strong> Total VMs</span>
           </div>
@@ -145,15 +146,15 @@
   <div class="results-recommendation__heading">
     <div>
       <p class="results-eyebrow">Internal decision</p>
-      <h2 id="assessor-recommendation-title">Migration specialist recommendation</h2>
-      <p class="results-recommendation__summary">Save the recommended path for the report. This choice does not recalculate costs or change the ranking.</p>
+      <h2 id="assessor-recommendation-title">{{ 'OCVS recommendation' if scenario_ui.ocvs_only else 'Migration specialist recommendation' }}</h2>
+      <p class="results-recommendation__summary">{{ 'OCVS is the single modeled delivery path for this business scenario.' if scenario_ui.ocvs_only else 'Save the recommended path for the report. This choice does not recalculate costs or change the ranking.' }}</p>
     </div>
   </div>
 
   <form method="post" action="{{ url_for('step4') }}" class="recommendation-form" novalidate>
     <input type="hidden" name="action" value="save_recommendation" />
     <fieldset>
-      <legend>Recommended path</legend>
+      <legend>{{ 'OCVS delivery path' if scenario_ui.ocvs_only else 'Recommended path' }}</legend>
       <div class="recommendation-options">
         {% for option in results.recommendation_options %}
           {% set option_id = 'recommendation-none' if option.value == '' else 'recommendation-' ~ option.value %}

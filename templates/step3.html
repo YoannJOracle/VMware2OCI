@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}VMware to OCI Migration Assessment - Inventory Review{% endblock %}
+{% block title %}VMware to OCI Migration Assessment - {{ scenario_ui.inventory_title }}{% endblock %}
 {% block head %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/inventory-review.css') }}" />
 {% endblock %}
@@ -7,8 +7,9 @@
   <section class="inventory-review" aria-labelledby="inventory-review-title">
     <header class="inventory-review__heading">
       <div>
-        <p class="inventory-review__eyebrow">Workload scope and initial placement</p>
-        <h1 id="inventory-review-title">Inventory Review</h1>
+        <p class="inventory-review__eyebrow">{{ scenario_ui.inventory_eyebrow }}</p>
+        <h1 id="inventory-review-title">{{ scenario_ui.inventory_title }}</h1>
+        <p>{{ scenario_ui.inventory_instruction }}</p>
       </div>
       <div class="inventory-review__heading-actions">
         <span class="inventory-review__selection-status" data-selection-status role="status" aria-live="polite" aria-atomic="true">
@@ -23,7 +24,7 @@
       <div><dt>RAM</dt><dd>{{ inventory_summary.total_memory }}</dd></div>
       <div><dt>Storage</dt><dd>{{ "{:,}".format(inventory_summary.total_storage_gb) }} GB</dd></div>
       <div><dt>Powered on</dt><dd>{{ "{:,}".format(inventory_summary.powered_on_count) }}</dd></div>
-      <div><dt>Native-supported</dt><dd>{{ "{:,}".format(inventory_summary.native_supported_count) }}</dd></div>
+      {% if not scenario_ui.ocvs_only %}<div><dt>Native-supported</dt><dd>{{ "{:,}".format(inventory_summary.native_supported_count) }}</dd></div>{% endif %}
       <div><dt title="Unique VMs with one or more inventory notes">VMs to review</dt><dd>{{ "{:,}".format(inventory_summary.review_count) }}</dd></div>
     </dl>
 
@@ -47,7 +48,7 @@
             <span>Search inventory</span>
             <input id="inventory-search" type="search" autocomplete="off" placeholder="VM name or operating system" />
           </label>
-          <label class="inventory-field" for="inventory-support-filter">
+          {% if not scenario_ui.ocvs_only %}<label class="inventory-field" for="inventory-support-filter">
             <span>Native support</span>
             <select id="inventory-support-filter">
               <option value="all">All support states</option>
@@ -55,7 +56,7 @@
               <option value="unsupported">Requires remediation</option>
               <option value="review">Review</option>
             </select>
-          </label>
+          </label>{% endif %}
           <label class="inventory-field" for="inventory-power-filter">
             <span>Power</span>
             <select id="inventory-power-filter">
@@ -65,7 +66,7 @@
               <option value="unknown">Unknown</option>
             </select>
           </label>
-          <label class="inventory-field" for="inventory-placement-filter">
+          {% if not scenario_ui.ocvs_only %}<label class="inventory-field" for="inventory-placement-filter">
             <span>Placement</span>
             <select id="inventory-placement-filter">
               <option value="all">All placements</option>
@@ -73,7 +74,7 @@
               <option value="ocvs">OCVS</option>
               <option value="review">Review</option>
             </select>
-          </label>
+          </label>{% endif %}
         </div>
 
         <div class="inventory-toolbar__commands">
@@ -82,7 +83,7 @@
             <button type="button" class="inventory-button inventory-button--secondary" data-include-filtered>Include filtered</button>
             <button type="button" class="inventory-button inventory-button--secondary" data-exclude-filtered>Exclude filtered</button>
           </div>
-          <div class="inventory-command-group inventory-command-group--placement">
+          {% if not scenario_ui.ocvs_only %}<div class="inventory-command-group inventory-command-group--placement">
             <label class="inventory-field" for="inventory-bulk-placement">
               <span>Bulk placement</span>
               <select id="inventory-bulk-placement">
@@ -93,7 +94,7 @@
               </select>
             </label>
             <button type="button" class="inventory-button inventory-button--secondary" data-apply-placement>Apply</button>
-          </div>
+          </div>{% endif %}
         </div>
         <output id="inventory-bulk-scope" class="inventory-toolbar__scope" aria-live="polite">
           Bulk scope: all {{ inventory_summary.vm_count }} loaded VMs.
