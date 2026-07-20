@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}VMware to OCI Migration Assessment - Inventory Review{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventory-review.css') }}" />
+{% endblock %}
+{% block stage_content %}
+  <section class="inventory-review" aria-labelledby="inventory-review-title">
+    <header class="inventory-review__heading">
+      <div>
+        <p class="inventory-review__eyebrow">Workload scope and initial placement</p>
+        <h1 id="inventory-review-title">Inventory Review</h1>
+      </div>
+      <div class="inventory-review__heading-actions">
+        <span class="inventory-review__selection-status" data-selection-status role="status" aria-live="polite" aria-atomic="true">
+          {{ selected_vm_count }} of {{ inventory_summary.vm_count }} included
+        </span>
+      </div>
+    </header>
+
+    <dl class="inventory-summary" aria-label="Inventory summary">
+      <div><dt>VMs</dt><dd>{{ "{:,}".format(inventory_summary.vm_count) }}</dd></div>
+      <div><dt>vCPU</dt><dd>{{ "{:,}".format(inventory_summary.total_vcpus) }}</dd></div>
+      <div><dt>RAM</dt><dd>{{ inventory_summary.total_memory }}</dd></div>
+      <div><dt>Storage</dt><dd>{{ "{:,}".format(inventory_summary.total_storage_gb) }} GB</dd></div>
+      <div><dt>Powered on</dt><dd>{{ "{:,}".format(inventory_summary.powered_on_count) }}</dd></div>
+      <div><dt>Native-supported</dt><dd>{{ "{:,}".format(inventory_summary.native_supported_count) }}</dd></div>
+      <div><dt title="Unique VMs with one or more inventory notes">VMs to review</dt><dd>{{ "{:,}".format(inventory_summary.review_count) }}</dd></div>
+    </dl>
+
+    <form method="post" id="continue_step4_form" class="inventory-review__form" novalidate>
+      <input type="hidden" name="action" value="save_inventory_review" />
+
+      {% if inventory_errors %}
+        <div class="inventory-error-summary" id="inventory-errors" role="alert" tabindex="-1">
+          <h2>Review the highlighted inventory items</h2>
+          <ul>
+            {% for error in inventory_errors %}<li>{{ error }}</li>{% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      {% include "_warning_inbox.html" %}
+
+      <section class="inventory-toolbar" aria-label="Inventory filters and bulk actions">
+        <div class="inventory-toolbar__filters">
+          <label class="inventory-field inventory-field--search" for="inventory-search">
+            <span>Search inventory</span>
+            <input id="inventory-search" type="search" autocomplete="off" placeholder="VM name or operating system" />
+          </label>
+          <label class="inventory-field" for="inventory-support-filter">
+            <span>Native support</span>
+            <select id="inventory-support-filter">
+              <option value="all">All support states</option>
+              <option value="supported">Supported</option>
+              <option value="unsupported">Requires remediation</option>
+              <option value="review">Review</option>
+            </select>
+          </label>
+          <label class="inventory-field" for="inventory-power-filter">
+            <span>Power</span>
+            <select id="inventory-power-filter">
+              <option value="all">All power states</option>
+              <option value="on">Powered on</option>
+              <option value="off">Powered off</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+          <label class="inventory-field" for="inventory-placement-filter">
+            <span>Placement</span>
+            <select id="inventory-placement-filter">
+              <option value="all">All placements</option>
+              <option value="native">OCI Native</option>
+              <option value="ocvs">OCVS</option>
+              <option value="review">Review</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="inventory-toolbar__commands">
+          <div class="inventory-command-group" aria-label="Inclusion commands">
+            <button type="button" class="inventory-button inventory-button--secondary" data-select-all>Select All</button>
+            <button type="button" class="inventory-button inventory-button--secondary" data-include-filtered>Include filtered</button>
+            <button type="button" class="inventory-button inventory-button--secondary" data-exclude-filtered>Exclude filtered</button>
+          </div>
+          <div class="inventory-command-group inventory-command-group--placement">
+            <label class="inventory-field" for="inventory-bulk-placement">
+              <span>Bulk placement</span>
+              <select id="inventory-bulk-placement">
+                <option value="">Choose placement</option>
+                <option value="native">OCI Native</option>
+                <option value="ocvs">OCVS</option>
+                <option value="review">Review</option>
+              </select>
+            </label>
+            <button type="button" class="inventory-button inventory-button--secondary" data-apply-placement>Apply</button>
+          </div>
+        </div>
+        <output id="inventory-bulk-scope" class="inventory-toolbar__scope" aria-live="polite">
+          Bulk scope: all {{ inventory_summary.vm_count }} loaded VMs.
+        </output>
+      </section>
+
+      {% include "_inventory_table.html" %}
+
+    </form>
+
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/inventory-review.js') }}" defer></script>
+{% endblock %}

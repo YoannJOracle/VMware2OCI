@@ -1,0 +1,882 @@
+{% extends "base.html" %}
+{% block title %}VMware to OCI Migration Assessment - Setup{% endblock %}
+{% block head %}
+  <style>
+    .setup-page {
+      width: min(100%, 1120px);
+      color: var(--workspace-text);
+    }
+    .setup-intro {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 4px 0 18px;
+    }
+    .setup-intro h1,
+    .setup-section h2,
+    .saved-assessments > h3,
+    .setup-error-summary h2 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+    .setup-intro h1 { font-size: 25px; }
+    .setup-intro p {
+      max-width: 680px;
+      margin: 0;
+      color: var(--workspace-muted);
+      line-height: 1.5;
+    }
+    .setup-section {
+      padding: 22px 0 24px;
+      border-top: 1px solid var(--workspace-line);
+    }
+    .saved-assessments {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--workspace-line);
+    }
+    .setup-section__header {
+      display: grid;
+      grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+      gap: 24px;
+      align-items: baseline;
+      margin-bottom: 16px;
+    }
+    .setup-section__header h2,
+    .saved-assessments > h3 { font-size: 16px; }
+    .setup-section__header p,
+    .saved-assessments__intro {
+      margin: 0;
+      color: var(--workspace-muted);
+      line-height: 1.45;
+    }
+    .setup-error-summary {
+      margin: 0 0 18px;
+      padding: 14px 16px;
+      border: 1px solid #e4aaa5;
+      border-left: 4px solid var(--workspace-error);
+      border-radius: 6px;
+      background: var(--workspace-error-soft);
+      color: var(--workspace-error);
+    }
+    .setup-error-summary h2 { font-size: 16px; }
+    .setup-error-summary ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+    .setup-error-summary a {
+      color: inherit;
+      font-weight: 700;
+    }
+    .setup-form {
+      display: grid;
+      gap: 14px;
+      margin: 0;
+    }
+    .setup-form--identity {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .setup-field {
+      min-width: 0;
+      display: grid;
+      gap: 6px;
+    }
+    .setup-field--full { grid-column: 1 / -1; }
+    .setup-field label,
+    .inventory-mode legend {
+      color: var(--workspace-text);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    .setup-field input,
+    .setup-field select,
+    .setup-field textarea {
+      width: 100%;
+      min-width: 0;
+      min-height: 42px;
+      padding: 9px 10px;
+      border: 1px solid var(--workspace-line-strong);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--workspace-text);
+      font: inherit;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+    .setup-field textarea {
+      min-height: 76px;
+      resize: vertical;
+      line-height: 1.4;
+    }
+    .setup-field input[aria-invalid="true"],
+    .setup-field select[aria-invalid="true"] {
+      border-color: var(--workspace-error);
+    }
+    .setup-field__hint,
+    .setup-field__error {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .setup-field__hint { color: var(--workspace-muted); }
+    .setup-field__error {
+      color: var(--workspace-error);
+      font-weight: 700;
+    }
+    .setup-sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+      padding: 0;
+    }
+    .setup-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .setup-form--identity .setup-actions { grid-column: 1 / -1; }
+    .setup-button {
+      min-height: 40px;
+      padding: 8px 14px;
+      border: 1px solid var(--workspace-primary);
+      border-radius: 6px;
+      background: var(--workspace-primary);
+      color: #ffffff;
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    .setup-button:hover {
+      border-color: var(--workspace-primary-hover);
+      background: var(--workspace-primary-hover);
+    }
+    .setup-button--secondary {
+      border-color: var(--workspace-line-strong);
+      background: #ffffff;
+      color: var(--workspace-text);
+    }
+    .setup-button--secondary:hover {
+      border-color: var(--workspace-primary);
+      background: var(--workspace-primary-soft);
+      color: var(--workspace-primary-hover);
+    }
+    .setup-button--danger {
+      border-color: #d88f89;
+      color: var(--workspace-error);
+    }
+    .status-summary {
+      display: grid;
+      grid-template-columns: minmax(150px, 1.2fr) repeat(3, minmax(105px, .7fr));
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0;
+      border-top: 1px solid var(--workspace-line);
+      border-bottom: 1px solid var(--workspace-line);
+      margin-bottom: 16px;
+    }
+    .status-summary__title {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .status-summary__title h3 {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      margin: 0;
+      font-size: 15px;
+    }
+    .status-badge {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 5px;
+      color: var(--workspace-primary-hover);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .status-badge::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--workspace-primary);
+      content: "";
+    }
+    .status-metric {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+    .status-metric dt {
+      color: var(--workspace-muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .status-metric dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .pricing-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+    }
+    .pricing-controls form {
+      min-width: 0;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      margin: 0;
+    }
+    .source-details {
+      margin-top: 16px;
+      border-top: 1px solid var(--workspace-line);
+      color: var(--workspace-muted);
+    }
+    .source-details summary {
+      width: fit-content;
+      padding: 12px 0 0;
+      color: var(--workspace-text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .source-details__list {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 0;
+      padding: 12px;
+      border: 1px solid var(--workspace-line);
+      border-radius: 6px;
+      background: #f7f8f8;
+    }
+    .source-details__list > div {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 12px;
+    }
+    .source-details__list dt { font-weight: 800; }
+    .source-details__list dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .source-details code {
+      white-space: normal;
+      word-break: break-word;
+    }
+    .inventory-mode {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      padding: 0;
+      border: 0;
+    }
+    .inventory-mode__input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .inventory-panel[hidden] { display: none; }
+    .inventory-panel {
+      display: grid;
+      gap: 16px;
+    }
+    .inventory-replace-note {
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--workspace-line);
+      border-radius: 6px;
+      background: var(--workspace-primary-soft);
+      color: var(--workspace-primary-hover);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+    .inventory-upload-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      align-items: stretch;
+    }
+    .inventory-upload-card {
+      grid-template-rows: auto auto minmax(40px, 1fr) auto;
+      height: 100%;
+    }
+    .inventory-upload-help {
+      display: grid;
+      gap: 4px;
+      align-content: start;
+    }
+    .inventory-upload-card .setup-actions {
+      margin-top: auto;
+    }
+    .inventory-upload-primary label {
+      font-size: 15px;
+    }
+    .manual-inventory-fallback {
+      margin-top: 4px;
+      border: 1px dashed var(--workspace-line-strong);
+      border-radius: 6px;
+      background: #f7f8f8;
+      color: var(--workspace-muted);
+    }
+    .manual-inventory-fallback[open] {
+      border-style: solid;
+      background: #ffffff;
+      color: var(--workspace-text);
+    }
+    .manual-inventory-fallback summary {
+      min-height: 42px;
+      padding: 12px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+    .manual-inventory-fallback__body {
+      display: grid;
+      gap: 14px;
+      padding: 0 12px 14px;
+    }
+    .manual-inventory-fallback__body > p {
+      margin: 0;
+      color: var(--workspace-muted);
+      line-height: 1.45;
+    }
+    .manual-inventory-fallback h3 {
+      margin: 0;
+      font-size: 15px;
+    }
+    .manual-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .inventory-notice {
+      margin: 0;
+      color: var(--workspace-error);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .inventory-summary { margin-top: 18px; }
+    .inventory-summary .status-summary {
+      grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(90px, .6fr));
+      margin-bottom: 0;
+    }
+    .quality-notes {
+      margin: 12px 0 0;
+      padding-left: 20px;
+      color: var(--workspace-review);
+      font-size: 13px;
+    }
+    .warning-review {
+      margin-top: 16px;
+      border-top: 1px solid var(--workspace-line);
+    }
+    .warning-review > h3 {
+      margin: 14px 0 8px;
+      font-size: 15px;
+    }
+    .warning-review details {
+      padding: 9px 0;
+      border-bottom: 1px solid var(--workspace-line);
+    }
+    .warning-review summary {
+      cursor: pointer;
+      font-weight: 800;
+    }
+    .warning-review__detail {
+      margin: 8px 0;
+      color: var(--workspace-muted);
+      font-size: 13px;
+    }
+    .warning-review__detail span {
+      display: block;
+      margin-top: 4px;
+      color: var(--workspace-text);
+      font-weight: 800;
+    }
+    .warning-review__table-wrap { overflow-x: auto; }
+    .warning-review table {
+      width: 100%;
+      min-width: 420px;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .warning-review th,
+    .warning-review td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--workspace-line);
+      text-align: left;
+      vertical-align: top;
+    }
+    .saved-assessments__layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+      margin-top: 14px;
+      max-width: 720px;
+    }
+    .saved-assessments form {
+      min-width: 0;
+      display: grid;
+      gap: 10px;
+      margin: 0;
+    }
+    .saved-assessments h4 {
+      margin: 0;
+      font-size: 14px;
+    }
+    button:disabled,
+    select:disabled {
+      cursor: not-allowed;
+      opacity: .58;
+    }
+    @media (max-width: 760px) {
+      .setup-intro,
+      .setup-section__header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+      }
+      .status-summary,
+      .inventory-summary .status-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .status-summary__title { grid-column: 1 / -1; }
+      .manual-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .setup-form--identity,
+      .pricing-controls,
+      .inventory-upload-grid,
+      .manual-grid,
+      .saved-assessments__layout,
+      .status-summary,
+      .inventory-summary .status-summary {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .status-summary__title { grid-column: auto; }
+      .setup-field--full,
+      .setup-form--identity .setup-actions { grid-column: auto; }
+      .inventory-mode__options { width: 100%; }
+      .source-details__list > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .setup-actions .setup-button { width: 100%; }
+    }
+  </style>
+{% endblock %}
+{% block stage_content %}
+  {% set field_labels = {
+    "currency_code": "Currency",
+    "price_list_file": "Existing price list",
+    "rvtools_file": "Saved inventory",
+    "rvtools_upload": "RVTools file",
+    "manual_vm_count": "VM count",
+    "manual_total_vcpus": "Total vCPU",
+    "manual_total_memory_gb": "Total RAM GB",
+    "manual_total_storage_gb": "Total storage GB",
+    "manual_supported_vm_count": "Supported VM count",
+    "manual_unsupported_vm_count": "Unsupported VM count"
+  } %}
+  <div class="setup-page">
+    <header class="setup-intro">
+      <h1>Setup & Inventory</h1>
+      <p>Identify the assessment, confirm the pricing source, and add the workload inventory used throughout sizing and export.</p>
+    </header>
+
+    {% if field_errors %}
+      <div id="setup-error-summary" class="setup-error-summary" role="alert" tabindex="-1" data-setup-error-summary>
+        <h2>Review the highlighted fields</h2>
+        <ul>
+          {% for field_id, message in field_errors.items() %}
+            <li><a href="#{{ field_id }}">{{ field_labels.get(field_id, "Field") }}: {{ message }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <section id="assessment-identity" class="setup-section" aria-labelledby="assessment-identity-title">
+      <div class="setup-section__header">
+        <h2 id="assessment-identity-title">Assessment Identity</h2>
+        <p>Set the customer or project context. Saved assessment names are generated automatically with the date.</p>
+      </div>
+      <form method="post" class="setup-form setup-form--identity">
+        <div class="setup-field setup-field--full">
+          <label for="customer_name">Customer / project name</label>
+          <input
+            id="customer_name"
+            name="customer_name"
+            type="text"
+            maxlength="120"
+            value="{{ customer_name or '' }}"
+            placeholder="Customer or internal project"
+          />
+        </div>
+        <div class="setup-field setup-field--full">
+          <label for="assessment_notes">Notes</label>
+          <textarea
+            id="assessment_notes"
+            name="assessment_notes"
+            maxlength="2000"
+            placeholder="Review status, assumptions, or follow-up items"
+          >{{ active_assessment_notes or '' }}</textarea>
+        </div>
+        <div class="setup-actions">
+          <button type="submit" name="action" value="save_assessment" class="setup-button">Save Assessment</button>
+        </div>
+      </form>
+
+      <div id="saved-assessments" class="saved-assessments" aria-labelledby="saved-assessments-title">
+        <h3 id="saved-assessments-title">Saved Assessments</h3>
+        <div class="saved-assessments__layout">
+          <form method="post">
+            <div class="setup-field">
+              <label for="assessment_id">Saved assessment</label>
+              <select id="assessment_id" name="assessment_id" {% if saved_assessments %}required{% else %}disabled{% endif %}>
+                {% if saved_assessments %}
+                  {% for assessment in saved_assessments %}
+                    <option value="{{ assessment.id }}" {% if assessment.id == active_assessment_id %}selected{% endif %}>
+                      {{ assessment.name }} - {{ assessment.updated_at_display }} - {{ "{:,}".format(assessment.vm_count) }} VM(s)
+                    </option>
+                  {% endfor %}
+                {% else %}
+                  <option selected>No saved assessments yet</option>
+                {% endif %}
+              </select>
+            </div>
+            <div class="setup-actions">
+              <button type="submit" name="action" value="load_assessment" class="setup-button setup-button--secondary btn-secondary" {% if not saved_assessments %}disabled{% endif %}>Load</button>
+              <button type="submit" name="action" value="delete_assessment" class="setup-button setup-button--secondary setup-button--danger btn-secondary" {% if not saved_assessments %}disabled{% endif %}>Delete</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="oci-pricing" class="setup-section" aria-labelledby="oci-pricing-title">
+      <div class="setup-section__header">
+        <h2 id="oci-pricing-title">OCI Pricing</h2>
+        <p>Use a local OCI list-price snapshot and refresh it in the currency required for this assessment.</p>
+      </div>
+
+      {% if selected_pricelist_info %}
+        <dl class="status-summary" aria-label="Active OCI pricing summary">
+          <div class="status-summary__title">
+            <span class="status-badge">Active</span>
+            <h3>Active Price List</h3>
+          </div>
+          <div class="status-metric">
+            <dt>Currency</dt>
+            <dd>{{ selected_pricelist_info.currency }}</dd>
+          </div>
+          <div class="status-metric">
+            <dt>Pricing entries</dt>
+            <dd>{{ "{:,}".format(selected_pricelist_info.item_count) }}</dd>
+          </div>
+          <div class="status-metric">
+            <dt>Updated</dt>
+            <dd>{{ selected_pricelist_info.updated_at or "Not available" }}</dd>
+          </div>
+        </dl>
+      {% else %}
+        <dl class="status-summary" aria-label="OCI pricing status">
+          <div class="status-summary__title">
+            <h3>No active price list</h3>
+          </div>
+          <div class="status-metric">
+            <dt>Status</dt>
+            <dd>Selection required</dd>
+          </div>
+        </dl>
+      {% endif %}
+
+      <div class="pricing-controls">
+        <form method="post" id="download_pricing_form">
+          <input type="hidden" name="action" value="download_pricing" />
+          <div class="setup-field">
+            <label for="currency_code">Currency</label>
+            <select
+              id="currency_code"
+              name="currency_code"
+              required
+              aria-describedby="currency_download_status{% if field_errors.get('currency_code') %} currency_code-error{% endif %}"
+              {% if field_errors.get('currency_code') %}aria-invalid="true"{% endif %}
+            >
+              <option value="" {% if not selected_currency %}selected{% endif %}>Select currency</option>
+              {% for currency in currencies %}
+                <option value="{{ currency }}" {% if currency == selected_currency %}selected{% endif %}>{{ currency }}</option>
+              {% endfor %}
+            </select>
+            <p class="setup-field__hint" id="currency_download_status">Select the currency for OCI list pricing.</p>
+            {% if field_errors.get("currency_code") %}
+              <p class="setup-field__error" id="currency_code-error">{{ field_errors.currency_code }}</p>
+            {% endif %}
+          </div>
+          <div class="setup-actions">
+            <button type="submit" class="setup-button" id="download_pricing_button">
+              {{ "Refresh Latest" if selected_pricelist_info else "Download Latest" }}
+            </button>
+          </div>
+        </form>
+
+        <form method="post">
+          <input type="hidden" name="action" value="select_pricelist" />
+          <div class="setup-field">
+            <label for="price_list_file">Existing local list</label>
+            <select
+              id="price_list_file"
+              name="price_list_file"
+              {% if price_list_choices %}required{% else %}disabled{% endif %}
+              aria-describedby="price_list_file-hint{% if field_errors.get('price_list_file') %} price_list_file-error{% endif %}"
+              {% if field_errors.get('price_list_file') %}aria-invalid="true"{% endif %}
+            >
+              {% if price_list_choices %}
+                <option value="">Select a saved price list</option>
+                {% for choice in price_list_choices %}
+                  <option value="{{ choice.token }}" {% if choice.file_path == selected_pricelist_file %}selected{% endif %}>{{ choice.label }}</option>
+                {% endfor %}
+              {% else %}
+                <option selected>No local price lists available</option>
+              {% endif %}
+            </select>
+            <p class="setup-field__hint" id="price_list_file-hint">Only the ten most recent local lists are shown.</p>
+            {% if field_errors.get("price_list_file") %}
+              <p class="setup-field__error" id="price_list_file-error">{{ field_errors.price_list_file }}</p>
+            {% endif %}
+          </div>
+          <div class="setup-actions">
+            <button type="submit" class="setup-button setup-button--secondary btn-secondary" {% if not price_list_choices %}disabled{% endif %}>Use Selected List</button>
+          </div>
+        </form>
+      </div>
+
+      {% set source_details_kind = "pricing" %}
+      {% include "_source_details.html" %}
+    </section>
+
+    <section id="inventory-source" class="setup-section" aria-labelledby="inventory-source-title">
+      <div class="setup-section__header">
+        <h2 id="inventory-source-title">Inventory Source</h2>
+        <p>Upload an RVTools export or reuse a previously uploaded file.</p>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="setup-form" id="inventory-source-form">
+        <fieldset class="inventory-mode" aria-label="Inventory source option">
+          <legend class="setup-sr-only">Inventory source option</legend>
+          <input
+            class="inventory-mode__input"
+            id="inventory-mode-upload"
+            name="inventory_mode"
+            type="radio"
+            value="upload"
+            aria-label="Use RVTools upload or saved inventory"
+            {% if inventory_mode == "upload" %}checked{% endif %}
+          />
+        </fieldset>
+
+        <div
+          class="inventory-panel"
+          data-inventory-mode-panel="upload"
+          aria-hidden="false"
+        >
+          {% if selected_rvtools_file %}
+            <p class="inventory-replace-note">
+              Upload or choose a saved inventory to replace the active source. The current inventory is kept if the replacement is not accepted.
+            </p>
+          {% endif %}
+          <div class="inventory-upload-grid">
+            <div class="setup-field inventory-upload-card inventory-upload-primary">
+              <label for="rvtools_upload">Upload RVTools file</label>
+              <input
+                id="rvtools_upload"
+                name="rvtools_upload"
+                type="file"
+                accept=".xlsx,.xlsm,.csv"
+                aria-describedby="rvtools_upload-hint{% if field_errors.get('rvtools_upload') %} rvtools_upload-error{% endif %}"
+                {% if field_errors.get('rvtools_upload') %}aria-invalid="true"{% endif %}
+              />
+              <div class="inventory-upload-help">
+                <p class="setup-field__hint" id="rvtools_upload-hint">Use an RVTools .xlsx, .xlsm, or .csv export.</p>
+                {% if field_errors.get("rvtools_upload") %}
+                  <p class="setup-field__error" id="rvtools_upload-error">{{ field_errors.rvtools_upload }}</p>
+                {% endif %}
+              </div>
+              <div class="setup-actions">
+                <button type="submit" name="action" value="upload_rvtools_file" class="setup-button">Upload RVTools File</button>
+              </div>
+            </div>
+
+            <div class="setup-field inventory-upload-card inventory-upload-secondary">
+              <label for="rvtools_file">Use saved inventory</label>
+              <select
+                id="rvtools_file"
+                name="rvtools_file"
+                aria-describedby="rvtools_file-hint{% if field_errors.get('rvtools_file') %} rvtools_file-error{% endif %}"
+                {% if field_errors.get('rvtools_file') %}aria-invalid="true"{% endif %}
+              >
+                <option value="">Select a saved inventory</option>
+                {% for choice in rvtools_file_choices %}
+                  <option value="{{ choice.token }}" {% if choice.file_path == selected_rvtools_file %}selected{% endif %}>{{ choice.label }}</option>
+                {% endfor %}
+              </select>
+              <div class="inventory-upload-help">
+                <p class="setup-field__hint" id="rvtools_file-hint">Reuse a previously uploaded RVTools export.</p>
+                {% if field_errors.get("rvtools_file") %}
+                  <p class="setup-field__error" id="rvtools_file-error">{{ field_errors.rvtools_file }}</p>
+                {% endif %}
+              </div>
+              <div class="setup-actions">
+                <button type="submit" name="action" value="select_rvtools_file" class="setup-button setup-button--secondary btn-secondary">Use Saved Inventory</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <details
+          class="manual-inventory-fallback"
+          data-manual-inventory-fallback
+          {% if inventory_mode == "manual" %}open{% endif %}
+        >
+          <summary>No RVTools file? Create manual summary</summary>
+          <div class="manual-inventory-fallback__body">
+            <p>Use this fallback only when the customer cannot share an RVTools export.</p>
+            <input
+              class="inventory-mode__input"
+              id="inventory-mode-manual"
+              name="inventory_mode"
+              type="radio"
+              value="manual"
+              aria-label="Use manual workload summary"
+              {% if inventory_mode == "manual" %}checked{% endif %}
+            />
+        <div
+          class="inventory-panel"
+          data-inventory-mode-panel="manual"
+          aria-hidden="{{ 'false' if inventory_mode == 'manual' else 'true' }}"
+          {% if inventory_mode != "manual" %}hidden{% endif %}
+        >
+          <h3>Manual Workload Summary</h3>
+          <p class="setup-field__hint" id="manual-summary-hint">Totals are distributed across generated VM rows while preserving the values entered here.</p>
+          <div class="manual-grid">
+            <div class="setup-field">
+              <label for="manual_vm_count">VM count</label>
+              <input id="manual_vm_count" name="manual_vm_count" type="number" min="1" step="1" value="{{ manual_sizing_form.vm_count }}" data-mode-required="true" {% if inventory_mode == "manual" %}required{% endif %} aria-describedby="manual-summary-hint{% if field_errors.get('manual_vm_count') %} manual_vm_count-error{% endif %}" {% if field_errors.get('manual_vm_count') %}aria-invalid="true"{% endif %} />
+              {% if field_errors.get("manual_vm_count") %}<p class="setup-field__error" id="manual_vm_count-error">{{ field_errors.manual_vm_count }}</p>{% endif %}
+            </div>
+            <div class="setup-field">
+              <label for="manual_total_vcpus">Total vCPU</label>
+              <input id="manual_total_vcpus" name="manual_total_vcpus" type="number" min="1" step="1" value="{{ manual_sizing_form.total_vcpus }}" data-mode-required="true" {% if inventory_mode == "manual" %}required{% endif %} aria-describedby="manual-summary-hint{% if field_errors.get('manual_total_vcpus') %} manual_total_vcpus-error{% endif %}" {% if field_errors.get('manual_total_vcpus') %}aria-invalid="true"{% endif %} />
+              {% if field_errors.get("manual_total_vcpus") %}<p class="setup-field__error" id="manual_total_vcpus-error">{{ field_errors.manual_total_vcpus }}</p>{% endif %}
+            </div>
+            <div class="setup-field">
+              <label for="manual_total_memory_gb">Total RAM GB</label>
+              <input id="manual_total_memory_gb" name="manual_total_memory_gb" type="number" min="1" step="1" value="{{ manual_sizing_form.total_memory_gb }}" data-mode-required="true" {% if inventory_mode == "manual" %}required{% endif %} aria-describedby="manual-summary-hint{% if field_errors.get('manual_total_memory_gb') %} manual_total_memory_gb-error{% endif %}" {% if field_errors.get('manual_total_memory_gb') %}aria-invalid="true"{% endif %} />
+              {% if field_errors.get("manual_total_memory_gb") %}<p class="setup-field__error" id="manual_total_memory_gb-error">{{ field_errors.manual_total_memory_gb }}</p>{% endif %}
+            </div>
+            <div class="setup-field">
+              <label for="manual_total_storage_gb">Total storage GB</label>
+              <input id="manual_total_storage_gb" name="manual_total_storage_gb" type="number" min="1" step="1" value="{{ manual_sizing_form.total_storage_gb }}" data-mode-required="true" {% if inventory_mode == "manual" %}required{% endif %} aria-describedby="manual-summary-hint{% if field_errors.get('manual_total_storage_gb') %} manual_total_storage_gb-error{% endif %}" {% if field_errors.get('manual_total_storage_gb') %}aria-invalid="true"{% endif %} />
+              {% if field_errors.get("manual_total_storage_gb") %}<p class="setup-field__error" id="manual_total_storage_gb-error">{{ field_errors.manual_total_storage_gb }}</p>{% endif %}
+            </div>
+            <div class="setup-field">
+              <label for="manual_supported_vm_count">OCI-supported VMs</label>
+              <input id="manual_supported_vm_count" name="manual_supported_vm_count" type="number" min="0" step="1" value="{{ manual_sizing_form.supported_vm_count }}" data-mode-required="true" {% if inventory_mode == "manual" %}required{% endif %} aria-describedby="manual-summary-hint{% if field_errors.get('manual_supported_vm_count') %} manual_supported_vm_count-error{% endif %}" {% if field_errors.get('manual_supported_vm_count') %}aria-invalid="true"{% endif %} />
+              {% if field_errors.get("manual_supported_vm_count") %}<p class="setup-field__error" id="manual_supported_vm_count-error">{{ field_errors.manual_supported_vm_count }}</p>{% endif %}
+            </div>
+            <div class="setup-field">
+              <label for="manual_unsupported_vm_count">Unsupported / legacy VMs</label>
+              <input id="manual_unsupported_vm_count" name="manual_unsupported_vm_count" type="number" min="0" step="1" value="{{ manual_sizing_form.unsupported_vm_count }}" data-mode-required="true" {% if inventory_mode == "manual" %}required{% endif %} aria-describedby="manual-summary-hint{% if field_errors.get('manual_unsupported_vm_count') %} manual_unsupported_vm_count-error{% endif %}" {% if field_errors.get('manual_unsupported_vm_count') %}aria-invalid="true"{% endif %} />
+              {% if field_errors.get("manual_unsupported_vm_count") %}<p class="setup-field__error" id="manual_unsupported_vm_count-error">{{ field_errors.manual_unsupported_vm_count }}</p>{% endif %}
+            </div>
+          </div>
+          <div class="setup-actions">
+            <button type="submit" name="action" value="create_manual_inventory" class="setup-button">{{ manual_sizing_form.submit_label }}</button>
+          </div>
+        </div>
+          </div>
+        </details>
+      </form>
+
+      {% if rvtools_rejected_info %}
+        <p class="inventory-notice">The replacement was not accepted. Any previously valid inventory remains active.</p>
+      {% endif %}
+
+      {% if rvtools_file_info %}
+        <div class="inventory-summary">
+          <dl class="status-summary" aria-label="Selected inventory summary">
+            <div class="status-summary__title">
+              <span class="status-badge">Active</span>
+              <h3>Selected VM Inventory</h3>
+            </div>
+            {% if rvtools_import_summary %}
+              <div class="status-metric"><dt>VMs</dt><dd>{{ "{:,}".format(rvtools_import_summary.vm_count) }}</dd></div>
+              <div class="status-metric"><dt>vCPU</dt><dd>{{ "{:,}".format(rvtools_import_summary.total_vcpus) }}</dd></div>
+              <div class="status-metric"><dt>RAM</dt><dd>{{ "{:,}".format(rvtools_import_summary.total_memory_gb) }} GB</dd></div>
+              <div class="status-metric"><dt>Storage</dt><dd>{{ "{:,}".format(rvtools_import_summary.total_storage_gb) }} GB</dd></div>
+            {% endif %}
+          </dl>
+          {% if rvtools_import_summary and rvtools_import_summary.warning_messages %}
+            <ul class="quality-notes">
+              {% for warning in rvtools_import_summary.warning_messages %}<li>{{ warning }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+
+          {% if inventory_review_issues %}
+            <div class="warning-review" aria-label="Inventory quality checks">
+              <h3>Inventory quality checks</h3>
+              {% for issue in inventory_review_issues %}
+                <details id="issue-{{ issue.id }}">
+                  <summary>{{ issue.title }} ({{ issue.count }} VM{% if issue.count != 1 %}s{% endif %})</summary>
+                  <p class="warning-review__detail">
+                    {{ issue.detail }}
+                    <span>{{ issue.default_action }}</span>
+                  </p>
+                  <div class="warning-review__table-wrap">
+                    <table>
+                      <thead><tr><th>VM</th><th>Detected value</th><th>Issue</th></tr></thead>
+                      <tbody>
+                        {% for row in issue.vm_rows %}
+                          <tr>
+                            <td><strong>{{ row.vm_name }}</strong></td>
+                            <td>{{ row.detected_value }}</td>
+                            <td>{{ row.issue }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  {% if issue.hidden_count %}<p class="setup-field__hint">{{ issue.hidden_count }} additional VM(s) are available in Workload Scope.</p>{% endif %}
+                </details>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {% set source_details_kind = "inventory" %}
+      {% include "_source_details.html" %}
+    </section>
+
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/setup.js') }}" defer></script>
+{% endblock %}

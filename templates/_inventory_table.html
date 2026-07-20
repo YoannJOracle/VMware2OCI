@@ -1,0 +1,167 @@
+<section class="inventory-list" aria-labelledby="inventory-list-title">
+  <div class="inventory-list__heading">
+    <h2 id="inventory-list-title">VM inventory</h2>
+    <span data-visible-count>{{ inventory_summary.vm_count }} visible</span>
+  </div>
+  <div class="inventory-table-wrap inventory-table-scroll" role="region" aria-label="VM inventory table" tabindex="0">
+    <table id="inventory-table">
+      <thead>
+        <tr>
+          <th class="inventory-col-include" scope="col">
+            <span class="visually-hidden">Include</span>
+          </th>
+          <th class="inventory-col-name" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="name">VM name</button>
+          </th>
+          <th class="inventory-col-power" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="power">Power</button>
+          </th>
+          <th class="inventory-col-os" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="os">OS</button>
+          </th>
+          <th class="inventory-col-support" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="support">Native support</button>
+          </th>
+          <th class="inventory-col-number" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="cpu" data-sort-type="number">vCPU</button>
+          </th>
+          <th class="inventory-col-number" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="memory" data-sort-type="number">RAM</button>
+          </th>
+          <th class="inventory-col-number" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="storage" data-sort-type="number">Storage</button>
+          </th>
+          <th class="inventory-col-placement" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="placement">Suggested placement</button>
+          </th>
+          <th class="inventory-col-warning" scope="col" aria-sort="none">
+            <button type="button" class="inventory-sort" data-sort="warning">Notes</button>
+          </th>
+          <th class="inventory-col-details" scope="col">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vm in inventory_rows %}
+          <tr
+            data-inventory-row="{{ vm.row_index }}"
+            data-search="{{ vm.name }} {{ vm.raw_os }}"
+            data-support="{{ vm.support_state }}"
+            data-power="{{ vm.power_key }}"
+            data-placement="{{ vm.placement }}"
+            data-warning-ids="{{ vm.warning_ids }}"
+            data-sort-name="{{ vm.name }}"
+            data-sort-power="{{ vm.power_state }}"
+            data-sort-os="{{ vm.raw_os }}"
+            data-sort-support="{{ vm.support_label }}"
+            data-sort-cpu="{{ vm.cpus }}"
+            data-sort-memory="{{ vm.memory_mb }}"
+            data-sort-storage="{{ vm.provisioned_mib }}"
+            data-sort-placement="{{ vm.placement_label }}"
+            data-sort-warning="{{ vm.warning_titles|join(', ') }}"
+          >
+            <td class="inventory-col-include">
+              <input
+                id="inventory-include-{{ vm.row_index }}"
+                name="included_vm_names" type="checkbox"
+                value="{{ vm.name }}"
+                {% if vm.included %}checked{% endif %}
+                aria-label="Include {{ vm.name }}"
+              />
+            </td>
+            <th class="inventory-col-name" scope="row">
+              <label for="inventory-include-{{ vm.row_index }}">{{ vm.name }}</label>
+            </th>
+            <td class="inventory-col-power">{{ vm.power_state }}</td>
+            <td class="inventory-col-os">{{ vm.raw_os }}</td>
+            <td class="inventory-col-support">
+              <span class="inventory-status inventory-status--{{ vm.support_state }}">{{ vm.support_label }}</span>
+            </td>
+            <td class="inventory-col-number">{{ vm.cpus }}</td>
+            <td class="inventory-col-number">{{ "%.1f"|format(vm.memory_gb) }} GB</td>
+            <td class="inventory-col-number">{{ "%.1f"|format(vm.storage_gb) }} GB</td>
+            <td class="inventory-col-placement"><span data-placement-label>{{ vm.placement_label }}</span></td>
+            <td class="inventory-col-warning">
+              {% if vm.warning_titles %}
+                <button
+                  type="button"
+                  class="inventory-warning inventory-warning-button"
+                  data-note-details-target="inventory-details-{{ vm.row_index }}"
+                  aria-controls="inventory-details-{{ vm.row_index }}"
+                  aria-expanded="false"
+                  aria-label="View {{ vm.warning_titles|length }} inventory note{% if vm.warning_titles|length != 1 %}s{% endif %} for {{ vm.name }}"
+                >{{ vm.warning_titles|length }} note{% if vm.warning_titles|length != 1 %}s{% endif %}</button>
+              {% else %}
+                <span class="inventory-clear">None</span>
+              {% endif %}
+            </td>
+            <td class="inventory-col-details">
+              <button
+                type="button"
+                class="inventory-details-button"
+                data-details-target="inventory-details-{{ vm.row_index }}"
+                aria-controls="inventory-details-{{ vm.row_index }}"
+                aria-expanded="false"
+              >Details</button>
+            </td>
+          </tr>
+          <tr class="inventory-details-row" data-inventory-detail="{{ vm.row_index }}" hidden>
+            <td colspan="11">
+              <details class="inventory-row-details" id="inventory-details-{{ vm.row_index }}">
+                <summary>Details for {{ vm.name }}</summary>
+                <div class="inventory-row-details__content">
+                  <dl>
+                    <div><dt>Power</dt><dd>{{ vm.power_state }}</dd></div>
+                    <div><dt>Operating system</dt><dd>{{ vm.raw_os }}</dd></div>
+                    <div><dt>Native support</dt><dd>{{ vm.support_label }}</dd></div>
+                    <div><dt>vCPU</dt><dd>{{ vm.cpus }}</dd></div>
+                    <div><dt>RAM</dt><dd>{{ "%.1f"|format(vm.memory_gb) }} GB</dd></div>
+                    <div><dt>Storage</dt><dd>{{ "%.1f"|format(vm.storage_gb) }} GB</dd></div>
+                    <div class="inventory-row-details__notes">
+                      <dt>Notes</dt>
+                      <dd>
+                        {% if vm.warning_details %}
+                          <ul class="inventory-note-list">
+                            {% for note in vm.warning_details %}
+                              <li>
+                                <strong>{{ note.title }}</strong>
+                                <span><b>Detected value:</b> {{ note.detected_value }}</span>
+                                <span><b>Issue:</b> {{ note.reason }}</span>
+                                <span><b>Follow-up:</b> {{ note.recommendation }}</span>
+                              </li>
+                            {% endfor %}
+                          </ul>
+                        {% else %}
+                          None
+                        {% endif %}
+                      </dd>
+                    </div>
+                  </dl>
+                  <label class="inventory-field inventory-row-details__placement" for="inventory-placement-{{ vm.row_index }}">
+                    <span>Suggested placement for {{ vm.name }}</span>
+                    <select
+                      id="inventory-placement-{{ vm.row_index }}"
+                      name="{{ vm.placement_field_name }}"
+                      data-row-placement="{{ vm.row_index }}"
+                      {% if not vm.included %}disabled{% endif %}
+                      {% if vm.placement_error %}aria-invalid="true" aria-describedby="inventory-placement-error-{{ vm.row_index }}"{% endif %}
+                    >
+                      <option value="native" {% if vm.placement == 'native' %}selected{% endif %}>OCI Native</option>
+                      <option value="ocvs" {% if vm.placement == 'ocvs' %}selected{% endif %}>OCVS</option>
+                      <option value="review" {% if vm.placement == 'review' %}selected{% endif %}>Review</option>
+                    </select>
+                  </label>
+                  {% if vm.placement_error %}
+                    <p class="inventory-field-error" id="inventory-placement-error-{{ vm.row_index }}">{{ vm.placement_error }}</p>
+                  {% endif %}
+                </div>
+              </details>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="11">No VMs are available in the current inventory.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="inventory-empty-filter" data-empty-filter hidden>No VMs match the current filters.</p>
+</section>

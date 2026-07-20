@@ -1,0 +1,50 @@
+# Python cache/temp
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.tmp
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.virtualenv/
+virtualenv/
+
+# OS/editor temp files
+.DS_Store
+Thumbs.db
+desktop.ini
+._*
+
+# Project temp runtime state
+.codex_snapshots/
+.superpowers/
+.worktrees/
+downloads/app_state/
+downloads/exports/
+downloads/imported_assessments/
+*.zip
+/vmware2oci/
+/vmware2oci [0-9]*/
+/vmware-to-oci-migration-assessment/
+/vmware-to-oci-migration-assessment [0-9]*/
+
+# Downloaded/generated OCI price lists and local report data
+downloads/oci_pricing_*.json
+downloads/*.json
+
+# Local customer inventories and spreadsheet working copies
+rvtools/*
+!rvtools/
+!rvtools/README.txt
+!rvtools/example_RVTools_tabvInfo.csv
+~$*.xlsx
+~$*.xlsm
+
+# Legacy local scratch copies not used by app.py routes
+app2.py
+templates/scenario.html
+templates/step5.html

@@ -1,0 +1,47 @@
+<div class="assessment-menu" data-assessment-menu>
+  <button
+    class="assessment-menu__trigger"
+    type="button"
+    id="assessment-menu-trigger"
+    aria-expanded="false"
+    aria-controls="assessment-menu-panel"
+    data-assessment-menu-trigger
+  >
+    <span>Assessment</span>
+    <span aria-hidden="true">&#9662;</span>
+  </button>
+  <div
+    class="assessment-menu__panel"
+    id="assessment-menu-panel"
+    role="region"
+    aria-labelledby="assessment-menu-trigger"
+    data-assessment-menu-panel
+    hidden
+  >
+    <form method="post" action="{{ url_for('index') }}" data-assessment-save-form>
+      <input type="hidden" name="action" value="export_assessment" />
+      <button
+        type="submit"
+        class="assessment-menu__item"
+        data-assessment-export
+        data-assessment-save
+      >Export assessment JSON</button>
+    </form>
+    <form method="post" action="{{ url_for('import_assessment_route') }}" enctype="multipart/form-data" data-assessment-open-form>
+      <input type="hidden" name="action" value="import_assessment" />
+      <input
+        type="file"
+        name="assessment_file"
+        accept=".json,application/json"
+        hidden
+        data-assessment-open-file
+      />
+      <button
+        type="button"
+        class="assessment-menu__item"
+        data-assessment-import
+        data-assessment-open
+      >Import assessment JSON</button>
+    </form>
+  </div>
+</div>

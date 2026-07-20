@@ -1,0 +1,2165 @@
+{% extends "base.html" %}
+{% block title %}VMware to OCI Migration Assessment - {{ "Results & Export" if active_scenario == "price" else "Scenario Configuration" }}{% endblock %}
+{% block head %}
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --panel: #ffffff;
+      --text: #121417;
+      --muted: #5f6672;
+      --line: #d9dde3;
+      --line-strong: #c8cdd6;
+      --accent: #0f62fe;
+      --accent-2: #0043ce;
+      --danger: #b42318;
+      --good: #137333;
+      --warning: #8a5a00;
+      --chart-track: #e6ebf2;
+      --chart-native: #2563eb;
+      --chart-ocvs: #009688;
+      --chart-hybrid: #8b5cf6;
+      --cpu: #2563eb;
+      --ram: #059669;
+      --compute: #2563eb;
+      --storage: #f59e0b;
+      --license: #be185d;
+      --hosts: #009688;
+      --ocvs-storage: #8b5cf6;
+      --vmware-license: #dc2626;
+      --surface: #ffffff;
+      --surface-soft: #fbfcfe;
+      --accent-soft: #eff6ff;
+      --accent-line: #bfdbfe;
+      --radius: 6px;
+      --radius-sm: 4px;
+      --shadow-card: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 22px rgba(15, 23, 42, .045);
+      --shadow-panel: 0 10px 30px rgba(15, 23, 42, .055);
+      --font-xs: .72rem;
+      --font-sm: .78rem;
+      --font-md: .84rem;
+      --font-base: .9rem;
+      --font-section: .95rem;
+      --font-title: 1rem;
+      --font-page: 1.55rem;
+      --space-card-y: .38rem;
+      --space-card-x: .45rem;
+      --space-panel: .65rem;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; margin: 0; background: #eef2f7; color: var(--text); letter-spacing: 0; font-size: 14px; line-height: 1.35; }
+    .container { width: 100%; margin: 0; box-sizing: border-box; padding: 1rem 1.25rem; background: linear-gradient(180deg, #ffffff 0, #f8fbff 100%); min-height: 100vh; }
+    h1 { font-size: var(--font-page); margin: 0 0 .75rem; line-height: 1.15; }
+    h2 { font-size: 1.08rem; line-height: 1.2; }
+    h3 { font-size: var(--font-title); line-height: 1.2; }
+    .top-actions { margin-bottom: .75rem; display:flex; gap:.6rem; flex-wrap: wrap; align-items: stretch; justify-content: space-between; }
+    .top-tabs { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; }
+    .wizard-steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(150px, 1fr));
+      gap: .45rem;
+      margin: 0 0 .8rem;
+    }
+    .wizard-step {
+      display: block;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--line-strong);
+      background: #fff;
+      color: var(--muted);
+      padding: .5rem .6rem;
+      text-decoration: none;
+      min-width: 0;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-card);
+    }
+    .wizard-step strong {
+      display: block;
+      color: var(--text);
+      font-size: var(--font-xs);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: .12rem;
+    }
+    .wizard-step span {
+      display: block;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .wizard-step small {
+      display: block;
+      color: var(--muted);
+      margin-top: .12rem;
+      line-height: 1.3;
+      font-size: var(--font-sm);
+    }
+    .wizard-step.is-current {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      border-color: var(--accent-line);
+    }
+    .workspace-nav {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      flex-wrap: wrap;
+      min-width: min(100%, 650px);
+    }
+    .workspace-nav-label {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: var(--font-xs);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      padding-right: .1rem;
+    }
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color .15s ease;
+    }
+    a:hover { border-bottom-color: var(--accent); }
+    a.btn { display:inline-flex; align-items:center; background:#fff; color:var(--text); text-decoration:none; padding:.38rem .6rem; border-radius:var(--radius-sm); border:1px solid var(--line-strong); font-weight:600; line-height: 1.2; }
+    a.btn:hover { color: var(--accent); border-color: var(--accent); }
+    .meta, .summary { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius); padding: .6rem .75rem; margin-bottom: .75rem; box-shadow: var(--shadow-card); }
+    .meta p { margin: .35rem 0; }
+    .price-comparison { background: rgba(255,255,255,.96); border: 1px solid #cfd6e3; border-radius: var(--radius); padding: .65rem .75rem; margin-bottom: .75rem; box-shadow: var(--shadow-panel); }
+    #scenario-panel-native,
+    #scenario-panel-ocvs,
+    #scenario-panel-hybrid,
+    #scenario-panel-price {
+      --scenario-accent: var(--accent);
+      --scenario-strong: var(--accent-2);
+      --scenario-soft: var(--accent-soft);
+      --scenario-line: var(--accent-line);
+      border-color: var(--scenario-line);
+      background: linear-gradient(180deg, var(--scenario-soft) 0, var(--surface) 150px);
+      box-shadow: inset 0 4px 0 var(--scenario-accent), var(--shadow-card);
+    }
+    #scenario-panel-native { --scenario-accent: var(--chart-native); --scenario-strong: #1d4ed8; --scenario-soft: #eff6ff; --scenario-line: #93c5fd; }
+    #scenario-panel-ocvs { --scenario-accent: var(--chart-ocvs); --scenario-strong: #00695f; --scenario-soft: #e7fff8; --scenario-line: #5eead4; }
+    #scenario-panel-hybrid { --scenario-accent: var(--chart-hybrid); --scenario-strong: #6d28d9; --scenario-soft: #f6f0ff; --scenario-line: #c4b5fd; }
+    #scenario-panel-price {
+      --scenario-accent: var(--accent);
+      --scenario-strong: var(--accent-2);
+      --scenario-soft: #f8fafc;
+      --scenario-line: var(--line);
+      background: var(--surface);
+      box-shadow: var(--shadow-card);
+    }
+    #scenario-panel-native .scenario-panel-head,
+    #scenario-panel-ocvs .scenario-panel-head,
+    #scenario-panel-hybrid .scenario-panel-head,
+    #scenario-panel-price .scenario-panel-head { border-bottom-color: var(--scenario-line); }
+    #scenario-panel-native .scenario-panel-head h3,
+    #scenario-panel-ocvs .scenario-panel-head h3,
+    #scenario-panel-hybrid .scenario-panel-head h3,
+    #scenario-panel-price .scenario-panel-head h3 { color: var(--scenario-strong); }
+    #scenario-panel-native .scenario-badge,
+    #scenario-panel-ocvs .scenario-badge,
+    #scenario-panel-hybrid .scenario-badge,
+    #scenario-panel-price .scenario-badge { border-color: var(--scenario-line); background: var(--scenario-accent); color: #fff; }
+    #scenario-panel-native .scenario-kpi,
+    #scenario-panel-ocvs .scenario-kpi,
+    #scenario-panel-hybrid .scenario-kpi { background: #fff; border-color: var(--scenario-line); box-shadow: inset 0 3px 0 var(--scenario-accent); }
+    #scenario-panel-native .scenario-kpi span,
+    #scenario-panel-ocvs .scenario-kpi span,
+    #scenario-panel-hybrid .scenario-kpi span { color: var(--muted); }
+    #scenario-panel-native .scenario-box,
+    #scenario-panel-ocvs .scenario-box,
+    #scenario-panel-hybrid .scenario-box { background: var(--surface); border-color: var(--scenario-line); }
+    #scenario-panel-native .scenario-box h4,
+    #scenario-panel-ocvs .scenario-box h4,
+    #scenario-panel-hybrid .scenario-box h4 { color: var(--scenario-strong); }
+    #scenario-panel-native .scenario-guidance li,
+    #scenario-panel-ocvs .scenario-guidance li,
+    #scenario-panel-hybrid .scenario-guidance li { background: #fff; border-color: var(--scenario-line); }
+    .native-step-label,
+    .native-table-head { display: flex; justify-content: space-between; gap: .75rem; align-items: baseline; margin: .1rem 0 .45rem; padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
+    .native-step-label h4,
+    .native-table-head h4 { margin: 0; font-size: var(--font-section); color: var(--text); line-height: 1.2; }
+    .native-step-label span,
+    .native-table-head span { color: var(--muted); font-size: var(--font-sm); font-weight: 700; }
+    .native-bulk-pending,
+    .native-table-note { border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--text); padding: .45rem .55rem; margin: 0 0 .5rem; font-size: var(--font-sm); line-height: 1.35; box-shadow: inset 3px 0 0 var(--accent); }
+    .native-bulk-pending strong { color: var(--accent-2); }
+    .native-table-note strong { color: var(--accent-2); }
+    .workload-summary { border: 1px solid var(--line); background: var(--surface-soft); margin-bottom: .6rem; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-card); }
+    .workload-summary-head { display: flex; justify-content: space-between; gap: .75rem; align-items: baseline; padding: .45rem .55rem; border-bottom: 1px solid var(--line); }
+    .workload-summary-head h3 { margin: 0; font-size: var(--font-section); line-height: 1.2; }
+    .workload-summary-head span { color: var(--muted); font-size: var(--font-sm); font-weight: 700; }
+    .workload-scope-note { padding: .45rem .55rem 0; color: var(--muted); font-size: var(--font-sm); line-height: 1.35; }
+    .workload-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: .35rem; padding: .5rem .55rem; }
+    .workload-card { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius-sm); padding: var(--space-card-y) var(--space-card-x); min-width: 0; }
+    .workload-card span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .12rem; }
+    .workload-card strong { display: block; overflow-wrap: anywhere; }
+    .workload-profile-grid { display: grid; grid-template-columns: minmax(280px, 1.35fr) minmax(220px, .9fr) minmax(220px, .9fr); gap: .45rem; padding: 0 .55rem .55rem; }
+    .workload-profile-card { border: 1px solid var(--line); background: #fff; border-radius: var(--radius-sm); padding: .55rem; min-width: 0; }
+    .workload-profile-card h4 { margin: 0 0 .45rem; font-size: .95rem; color: var(--text); }
+    .os-bar-list { display: grid; gap: .42rem; }
+    .os-bar-head { display: flex; justify-content: space-between; gap: .6rem; align-items: baseline; font-size: var(--font-sm); }
+    .os-bar-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .os-bar-head span { color: var(--muted); font-size: var(--font-xs); font-weight: 700; white-space: nowrap; }
+    .os-bar-track, .mix-track { height: .62rem; background: #e9edf5; border: 1px solid #d5dce8; border-radius: 999px; overflow: hidden; }
+    .os-bar-fill { height: 100%; background: linear-gradient(90deg, #2563eb, #14b8a6); border-radius: inherit; }
+    .profile-mix { display: grid; gap: .45rem; }
+    .mix-track { display: flex; height: .82rem; }
+    .mix-part { min-width: 0; height: 100%; }
+    .mix-on, .mix-supported { background: #16a34a; }
+    .mix-off, .mix-unsupported { background: #f59e0b; }
+    .mix-unknown { background: #64748b; }
+    .mix-legend { display: grid; gap: .35rem; }
+    .mix-legend-row { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; color: var(--muted); font-size: var(--font-sm); }
+    .mix-label { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; }
+    .mix-dot { width: .58rem; height: .58rem; border-radius: 999px; flex: 0 0 auto; }
+    .mix-dot-on, .mix-dot-supported { background: #16a34a; }
+    .mix-dot-off, .mix-dot-unsupported { background: #f59e0b; }
+    .mix-dot-unknown { background: #64748b; }
+    .profile-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem; margin-top: .55rem; }
+    .profile-stat { border: 1px solid var(--line); background: var(--surface-soft); border-radius: var(--radius-sm); padding: .45rem; }
+    .profile-stat span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .12rem; }
+    .profile-stat strong { display: block; font-size: .95rem; }
+    .workload-note { border-top: 1px solid var(--line); color: var(--muted); padding: .4rem .55rem; line-height: 1.35; font-size: .82rem; }
+    .path-context-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: .4rem; margin-bottom: .6rem; }
+    .path-context-card { border: 1px solid var(--line); background: var(--surface-soft); border-radius: var(--radius-sm); padding: var(--space-card-y) var(--space-card-x); min-width: 0; }
+    .path-context-card span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .14rem; }
+    .path-context-card strong,
+    .path-context-card code { display: block; overflow-wrap: anywhere; line-height: 1.35; }
+    #scenario-panel-paths { background: linear-gradient(180deg, #fbfdff 0, #fff 180px); box-shadow: var(--shadow-card); border-color: #cfd6e3; }
+    .path-section-title { display: flex; justify-content: space-between; gap: .75rem; align-items: baseline; margin: .65rem 0 .45rem; padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
+    .path-section-title:first-of-type { margin-top: .1rem; }
+    .path-section-title h3 { margin: 0; font-size: var(--font-section); line-height: 1.2; }
+    .path-section-title span { color: var(--muted); font-size: var(--font-sm); font-weight: 700; }
+    .path-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: .65rem; }
+    .path-card {
+      --path-accent: var(--accent);
+      --path-accent-strong: var(--accent-2);
+      --path-soft: var(--accent-soft);
+      --path-line: var(--accent-line);
+      --path-top: var(--path-accent);
+      border: 1px solid var(--path-line);
+      background: linear-gradient(180deg, var(--path-soft) 0, #fff 118px);
+      border-radius: var(--radius);
+      padding: .6rem;
+      min-width: 0;
+      box-shadow: inset 0 4px 0 var(--path-accent), var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .path-card-native { --path-accent: #2563eb; --path-accent-strong: #1d4ed8; --path-soft: #eff6ff; --path-line: #93c5fd; }
+    .path-card-ocvs { --path-accent: var(--chart-ocvs); --path-accent-strong: #00695f; --path-soft: #e7fff8; --path-line: #5eead4; }
+    .path-card-hybrid { --path-accent: var(--chart-hybrid); --path-accent-strong: #6d28d9; --path-soft: #f6f0ff; --path-line: #c4b5fd; }
+    .path-card h4 { margin: 0 0 .22rem; font-size: var(--font-title); line-height: 1.2; color: var(--path-accent-strong); }
+    .path-card p { margin: 0 0 .45rem; color: var(--muted); line-height: 1.35; font-size: var(--font-md); }
+    .path-card-label { display: inline-flex; align-items: center; border: 1px solid var(--path-accent); background: var(--path-accent); color: #fff; font-size: var(--font-xs); font-weight: 800; padding: .14rem .42rem; margin-bottom: .38rem; width: fit-content; max-width: 100%; border-radius: 999px; }
+    .path-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .28rem; margin-bottom: .45rem; }
+    .path-metric { border: 1px solid var(--line); background: var(--surface-soft); border-radius: var(--radius-sm); padding: .28rem .34rem; min-width: 0; }
+    .path-metric span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .12rem; }
+    .path-metric strong { display: block; overflow-wrap: anywhere; }
+    .path-detail { color: var(--muted); font-size: .8rem; line-height: 1.35; min-height: 2.4em; margin-bottom: .5rem; }
+    .path-tools { border-top: 1px solid var(--path-line); padding-top: .45rem; margin: .45rem 0 .5rem; }
+    .path-tools strong { display: block; font-size: .8rem; margin-bottom: .25rem; }
+    .path-tools ul { margin: 0; padding-left: 1rem; color: var(--muted); line-height: 1.35; }
+    .path-card-section { border-top: 1px solid var(--path-line); padding-top: .42rem; margin-top: .42rem; }
+    .path-card-section strong { display: block; font-size: .8rem; margin-bottom: .25rem; color: var(--path-accent-strong); }
+    .path-card-section ul { margin: 0; padding-left: 1rem; color: var(--muted); line-height: 1.35; }
+    .path-card-section li::marker { color: var(--path-accent); }
+    .path-tools li { margin-bottom: .18rem; }
+    @media (min-width: 981px) {
+      .path-grid {
+        grid-template-rows: auto auto auto auto auto 1fr;
+        align-items: stretch;
+      }
+      .path-card {
+        display: grid;
+        grid-template-rows: subgrid;
+        grid-row: span 6;
+        row-gap: 0;
+      }
+      .path-card > button { margin-top: 0; align-self: end; }
+      .path-card-section { margin-top: 0; }
+      .path-tools { margin: 0 0 .5rem; }
+    }
+    @supports not (grid-template-rows: subgrid) {
+      @media (min-width: 981px) {
+        .path-card p { min-height: 5.7rem; }
+        .path-card-section:nth-of-type(1) { min-height: 8.4rem; }
+        .path-card-section:nth-of-type(2) { min-height: 7rem; }
+        .path-tools { min-height: 7.5rem; }
+      }
+    }
+    .assessment-validation { border: 1px solid var(--accent-line); background: linear-gradient(90deg, var(--accent-soft), #fff); border-radius: var(--radius); box-shadow: inset 4px 0 0 var(--accent); padding: .52rem .62rem; margin: .65rem 0; color: var(--text); line-height: 1.35; }
+    .assessment-validation strong { display: block; font-size: .86rem; margin-bottom: .18rem; }
+    .assessment-validation span { display: block; color: var(--muted); font-size: var(--font-sm); }
+    .price-cost-grid { display: grid; grid-template-columns: minmax(220px, 1.15fr) repeat(2, minmax(170px, .8fr)); gap: .55rem; margin-bottom: .65rem; }
+    .price-cost-card { border: 1px solid var(--line); background: var(--surface); padding: .62rem .7rem; min-width: 0; }
+    .price-cost-card.is-primary { border-color: var(--accent-line); background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+    .price-cost-card span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 800; margin-bottom: .16rem; }
+    .price-cost-card strong { display: block; font-size: 1.12rem; overflow-wrap: anywhere; }
+    .price-cost-card small { display: block; color: var(--muted); margin-top: .18rem; line-height: 1.3; }
+    .comparison-note { border: 1px solid var(--line); background: var(--surface-soft); padding: .52rem .62rem; margin-bottom: .65rem; color: var(--muted); line-height: 1.35; }
+    .price-visual { border: 1px solid var(--line); background: var(--surface); margin-bottom: .65rem; }
+    .price-visual-head { display: flex; justify-content: space-between; gap: .75rem; align-items: baseline; padding: .55rem .65rem; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+    .price-visual-head h4 { margin: 0; font-size: var(--font-section); }
+    .price-visual-head span { color: var(--muted); font-size: var(--font-sm); }
+    .price-bars { display: grid; gap: 0; }
+    .price-bar-row { display: grid; grid-template-columns: minmax(150px, .55fr) minmax(260px, 1.25fr) repeat(3, minmax(115px, .4fr)); gap: .7rem; align-items: center; padding: .68rem .65rem; border-top: 1px solid var(--line); }
+    .price-bar-row:first-child { border-top: 0; }
+    .price-bar-row.is-best,
+    .price-bar-row.price-row-native.is-best,
+    .price-bar-row.price-row-ocvs.is-best,
+    .price-bar-row.price-row-hybrid.is-best { background: #f8fbff; box-shadow: none; }
+    .price-bar-label strong { display: block; }
+    .price-bar-label small { display: block; color: var(--muted); margin-top: .12rem; line-height: 1.25; }
+    .price-bar-track { height: 30px; background: var(--chart-track); border: 1px solid var(--line); overflow: hidden; }
+    .price-bar-fill { height: 100%; min-width: 2px; display: flex; align-items: center; justify-content: flex-end; color: #fff; font-weight: 800; font-size: var(--font-sm); padding: 0 .35rem; text-shadow: 0 1px 1px rgba(0,0,0,.24); overflow: hidden; white-space: nowrap; }
+    .price-bar-native { background: var(--chart-native); }
+    .price-bar-ocvs { background: var(--chart-ocvs); }
+    .price-bar-hybrid { background: var(--chart-hybrid); }
+    .price-bar-value span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .12rem; }
+    .price-bar-value strong { display: block; white-space: nowrap; }
+    .price-delta { font-weight: 700; }
+    .price-delta.delta-save { color: #137333; }
+    .price-delta.delta-cost { color: var(--danger); }
+    .delta-save { color: var(--good); }
+    .delta-cost { color: var(--danger); }
+    .price-table-wrap { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); overflow-x: auto; box-shadow: var(--shadow-card); }
+    .price-insight-grid { display: grid; grid-template-columns: minmax(280px, 1.2fr) repeat(2, minmax(190px, .9fr)); gap: .55rem; margin-bottom: .65rem; }
+    .price-insight-card { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: .62rem .7rem; min-width: 0; box-shadow: var(--shadow-card); }
+    .price-insight-card.is-leader { border-color: #f59e0b; background: #fffaf0; box-shadow: inset 4px 0 0 #f59e0b, var(--shadow-card); }
+    .price-insight-card span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 800; margin-bottom: .16rem; }
+    .price-insight-card strong { display: block; font-size: 1.1rem; line-height: 1.2; overflow-wrap: anywhere; }
+    .price-insight-card small { display: block; color: var(--muted); margin-top: .2rem; line-height: 1.3; }
+    .price-scenario-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; margin-bottom: .65rem; }
+    .price-scenario-card {
+      --price-card-accent: var(--accent);
+      --price-card-strong: var(--accent-2);
+      --price-card-soft: var(--accent-soft);
+      --price-card-line: var(--accent-line);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: .58rem .65rem;
+      min-width: 0;
+      box-shadow: var(--shadow-card);
+    }
+    .price-scenario-card.price-card-native { --price-card-accent: var(--chart-native); --price-card-strong: #1d4ed8; --price-card-soft: #eff6ff; --price-card-line: #93c5fd; }
+    .price-scenario-card.price-card-ocvs { --price-card-accent: var(--chart-ocvs); --price-card-strong: #00695f; --price-card-soft: #e7fff8; --price-card-line: #5eead4; }
+    .price-scenario-card.price-card-hybrid { --price-card-accent: var(--chart-hybrid); --price-card-strong: #6d28d9; --price-card-soft: #f5f3ff; --price-card-line: #c4b5fd; }
+    .price-scenario-card.is-best { border-color: #f59e0b; background: linear-gradient(180deg, #fffaf0 0, #ffffff 132px); box-shadow: inset 0 4px 0 #f59e0b, var(--shadow-card); }
+    .price-card-head { display: flex; justify-content: space-between; gap: .5rem; align-items: flex-start; padding-bottom: .42rem; border-bottom: 1px solid var(--line); margin-bottom: .45rem; }
+    .price-card-head h4 { margin: 0; font-size: var(--font-title); line-height: 1.2; color: var(--price-card-strong); }
+    .price-rank { display: inline-flex; align-items: center; gap: .28rem; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: var(--font-xs); font-weight: 800; padding: .12rem .34rem; white-space: nowrap; }
+    .price-card-medal { align-items: center; border-radius: 999px; color: #1f2937; padding: .16rem .5rem .16rem .28rem; box-shadow: 0 1px 2px rgba(15, 23, 42, .12), inset 0 1px 0 rgba(255,255,255,.65); }
+    .price-card-medal .medal-symbol { display: inline-flex; align-items: center; justify-content: center; width: 1.45rem; height: 1.45rem; margin-right: .06rem; font-size: 1.08rem; line-height: 1; border-radius: 999px; background: rgba(255,255,255,.72); box-shadow: inset 0 0 0 1px rgba(255,255,255,.6); }
+    .price-card-medal-gold { border-color: #d97706; background: linear-gradient(135deg, #fff7cc 0%, #facc15 48%, #f59e0b 100%); color: #4a2b00; }
+    .price-card-medal-silver { border-color: #94a3b8; background: linear-gradient(135deg, #f8fafc 0%, #dbe3ef 52%, #94a3b8 100%); color: #253041; }
+    .price-card-medal-bronze { border-color: #b45309; background: linear-gradient(135deg, #ffedd5 0%, #d97706 58%, #92400e 100%); color: #fff7ed; }
+    .price-card-medal-bronze .medal-symbol { background: rgba(255,247,237,.22); }
+    .rank-number { display: inline-flex; align-items: center; justify-content: center; min-width: 1.35rem; font-weight: 800; }
+    .price-scenario-card.is-best .price-rank { border-color: #ca8a04; background: #fffbeb; color: #78350f; }
+    .price-metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .32rem; }
+    .price-metric { border: 1px solid var(--line); background: var(--surface-soft); border-radius: var(--radius-sm); padding: .32rem .38rem; min-width: 0; }
+    .price-metric span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .12rem; }
+    .price-metric strong { display: block; font-size: var(--font-base); line-height: 1.2; overflow-wrap: anywhere; }
+    .price-metric small { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-top: .12rem; }
+    .placement-mini { margin-top: .45rem; }
+    .placement-mini-head { display: flex; justify-content: space-between; gap: .5rem; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .2rem; }
+    .placement-mini-track { display: flex; height: 18px; background: var(--chart-track); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+    .placement-mini-native { background: var(--chart-native); min-width: 0; }
+    .placement-mini-ocvs { background: var(--chart-ocvs); min-width: 0; }
+    .price-card-detail { color: var(--muted); font-size: var(--font-sm); line-height: 1.35; margin: .4rem 0 0; }
+    @media (min-width: 981px) {
+      .price-scenario-grid {
+        grid-template-rows: auto auto auto 1fr;
+        align-items: stretch;
+      }
+      .price-scenario-card {
+        display: grid;
+        grid-template-rows: subgrid;
+        grid-row: span 4;
+      }
+      .price-card-head,
+      .placement-mini,
+      .price-card-detail { margin-top: 0; margin-bottom: 0; }
+      .price-metric-grid { align-content: start; }
+      .price-scenario-card > .price-card-detail:last-child { align-self: start; }
+    }
+    @supports not (grid-template-rows: subgrid) {
+      @media (min-width: 981px) {
+        .price-card-head { min-height: 6.7rem; margin-bottom: .45rem; }
+        .price-metric-grid { min-height: 7.1rem; align-content: start; }
+        .placement-mini { min-height: 2.45rem; margin-top: .45rem; }
+        .price-scenario-card > .price-card-detail:last-child { min-height: 2.7rem; }
+      }
+    }
+    .fit-review { margin-top: .55rem; border: 1px solid var(--line); background: #fff; }
+    .fit-review h3 { margin: 0; padding: .45rem .55rem; border-bottom: 1px solid var(--line); font-size: var(--font-section); }
+    .warning-list { display: grid; gap: 0; }
+    .warning-item { display: grid; grid-template-columns: 86px minmax(170px, .45fr) 1fr; gap: .45rem; padding: .42rem .55rem; border-top: 1px solid var(--line); align-items: start; }
+    .warning-item:first-child { border-top: 0; }
+    .severity { display: inline-flex; justify-content: center; min-width: 78px; padding: .18rem .35rem; border: 1px solid var(--line); font-size: var(--font-sm); font-weight: 700; text-transform: uppercase; }
+    .severity-critical { color: #8a1f17; background: #fff0ef; border-color: #efc4c1; }
+    .severity-warning { color: #7a4b00; background: #fff7e6; border-color: #e8c879; }
+    .severity-info { color: #124f86; background: #eef6ff; border-color: #b9d8f4; }
+    .warning-title { font-weight: 700; }
+    .warning-detail { color: var(--text); }
+    .best-row td { background: #f8fbff; }
+    .scenario-controls { border: 1px solid var(--line); background: var(--surface-soft); border-radius: var(--radius); padding: .52rem; margin-bottom: .55rem; }
+    .control-grid { display: grid; grid-template-columns: minmax(170px, 1.35fr) repeat(8, minmax(88px, 1fr)); gap: .42rem; align-items: end; }
+    .control-field label { display: block; font-size: var(--font-xs); color: var(--muted); font-weight: 600; margin-bottom: .18rem; }
+    .control-field input, .control-field select { width: 100%; min-height: 30px; }
+    .ocvs-section { border: 1px solid var(--line); background: var(--surface-soft); border-radius: var(--radius); margin-bottom: .6rem; overflow: hidden; box-shadow: var(--shadow-card); }
+    .ocvs-section-head { display: flex; justify-content: space-between; gap: .75rem; align-items: baseline; padding: .45rem .55rem; border-bottom: 1px solid var(--line); }
+    .ocvs-section-head h4 { margin: 0; font-size: var(--font-section); line-height: 1.2; }
+    .ocvs-section-head span { color: var(--muted); font-size: var(--font-sm); font-weight: 700; }
+    .ocvs-section-copy,
+    .ocvs-panel-copy { color: var(--muted); font-size: var(--font-sm); line-height: 1.35; margin: -.18rem 0 .45rem; }
+    .ocvs-section > .ocvs-section-copy { padding: .5rem .55rem 0; margin: 0; }
+    .ocvs-section .scenario-controls { border: 0; background: transparent; padding: .5rem .55rem; margin: 0; }
+    .ocvs-section .shape-price-chart { border: 0; margin: 0; background: transparent; }
+    .ocvs-step-label { display: flex; justify-content: space-between; gap: .75rem; align-items: baseline; margin: .1rem 0 .45rem; padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
+    .ocvs-step-label h4 { margin: 0; font-size: var(--font-section); line-height: 1.2; }
+    .ocvs-step-label span { color: var(--muted); font-size: var(--font-sm); font-weight: 700; }
+    .ocvs-driver-summary { margin-bottom: .4rem; }
+    .ocvs-driver-table { margin-top: .35rem; font-size: var(--font-md); }
+    .ocvs-subsection-title { margin: .65rem 0 .45rem !important; padding-top: .55rem; border-top: 1px solid var(--line); color: var(--scenario-strong) !important; }
+    .ocvs-decision-grid { display: grid; grid-template-columns: minmax(210px, 1.2fr) repeat(3, minmax(135px, .8fr)); gap: .35rem; margin-bottom: .55rem; }
+    .ocvs-decision-grid .scenario-detail { border-color: var(--scenario-line); background: #fff; box-shadow: inset 3px 0 0 var(--scenario-accent); }
+    .ocvs-outcome-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; margin-bottom: .45rem; }
+    .ocvs-outcome-grid .scenario-detail { border-color: var(--scenario-line); background: #fff; box-shadow: inset 3px 0 0 var(--scenario-accent); }
+    .ocvs-requirement-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .35rem; margin-bottom: .45rem; }
+    .ocvs-requirement-grid .scenario-detail { border-color: var(--scenario-line); background: #fff; box-shadow: inset 3px 0 0 var(--scenario-accent); }
+    .ocvs-profile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .scenario-validation-grid,
+    .ocvs-validation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; margin-top: .6rem; }
+    .scenario-validation-card,
+    .ocvs-validation-card { border: 1px solid var(--scenario-line); background: #fff; box-shadow: inset 3px 0 0 var(--scenario-accent); padding: .48rem .55rem; min-width: 0; }
+    .scenario-validation-card strong,
+    .ocvs-validation-card strong { display: block; color: var(--scenario-strong); font-size: var(--font-sm); margin-bottom: .18rem; }
+    .scenario-validation-card span,
+    .ocvs-validation-card span { display: block; color: var(--muted); font-size: var(--font-sm); line-height: 1.35; }
+    .ocvs-driver-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+    .ocvs-driver-strip .scenario-detail { border-color: var(--scenario-line); box-shadow: inset 3px 0 0 var(--scenario-accent); background: #fff; }
+    .ocvs-sizing-matrix { margin-top: .4rem; table-layout: fixed; }
+    .ocvs-sizing-matrix th,
+    .ocvs-sizing-matrix td { vertical-align: middle !important; }
+    .ocvs-sizing-matrix th:not(:first-child),
+    .ocvs-sizing-matrix td:not(:first-child) { text-align: left; white-space: normal; }
+    .ocvs-sizing-matrix th:nth-child(1) { width: 18%; }
+    .ocvs-sizing-matrix th:nth-child(2) { width: 25%; }
+    .ocvs-sizing-matrix th:nth-child(3) { width: 23%; }
+    .ocvs-sizing-matrix th:nth-child(4) { width: 34%; }
+    .ocvs-sizing-matrix td:first-child { border-left: 4px solid transparent; font-weight: 700; }
+    .ocvs-sizing-matrix tr.is-active-driver td { background: var(--scenario-soft); }
+    .ocvs-sizing-matrix tr.is-active-driver td:first-child { border-left-color: var(--scenario-accent); color: var(--scenario-strong); }
+    .ocvs-sizing-matrix .matrix-note { color: var(--muted); font-size: var(--font-sm); line-height: 1.3; }
+    .ocvs-highlight-card { border-color: var(--scenario-accent) !important; background: var(--scenario-soft) !important; box-shadow: inset 4px 0 0 var(--scenario-accent); }
+    .ocvs-highlight-card span { color: var(--scenario-strong) !important; }
+    .ocvs-highlight-card strong { color: var(--scenario-strong); font-size: 1.05rem; }
+    .scenario-detail small { display: block; color: var(--muted); font-size: var(--font-sm); font-weight: 700; line-height: 1.25; margin-top: .12rem; }
+    .ocvs-cost-table th:not(:first-child),
+    .ocvs-cost-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+    .ocvs-cost-table td:first-child,
+    .ocvs-cost-table th:first-child { text-align: left; }
+    .ocvs-cost-table th,
+    .ocvs-cost-table td { vertical-align: middle; }
+    .ocvs-commercial-assumption { margin-top: .6rem; }
+    .scenario-tools { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; margin: .65rem 0 .45rem; }
+    .scenario-tab {
+      --tab-accent: var(--accent);
+      --tab-strong: var(--accent-2);
+      --tab-soft: var(--accent-soft);
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--line-strong);
+      border-top: 3px solid var(--tab-accent);
+      border-radius: var(--radius-sm);
+      padding: .38rem .62rem;
+      box-shadow: none;
+      min-height: 2rem;
+    }
+    .top-tabs .scenario-tab { border-bottom: 1px solid var(--line-strong); }
+    .scenario-tab[data-scenario-tab="paths"] { --tab-accent: var(--accent); --tab-strong: var(--accent-2); --tab-soft: var(--accent-soft); }
+    .scenario-tab[data-scenario-tab="native"] { --tab-accent: var(--chart-native); --tab-strong: #1d4ed8; --tab-soft: #eff6ff; }
+    .scenario-tab[data-scenario-tab="ocvs"] { --tab-accent: var(--chart-ocvs); --tab-strong: #00695f; --tab-soft: #e7fff8; }
+    .scenario-tab[data-scenario-tab="hybrid"] { --tab-accent: var(--chart-hybrid); --tab-strong: #6d28d9; --tab-soft: #f5f3ff; }
+    .scenario-tab[data-scenario-tab="price"] { --tab-accent: #334155; --tab-strong: #1e293b; --tab-soft: #f1f5f9; }
+    .scenario-tab:hover {
+      background: var(--tab-soft);
+      color: var(--tab-strong);
+      border-color: var(--tab-accent);
+    }
+    .scenario-tab.is-active {
+      background: var(--tab-soft);
+      border-color: var(--tab-accent);
+      color: var(--tab-strong);
+      box-shadow: inset 0 -2px 0 var(--tab-accent);
+    }
+    .scenario-tab.is-active:hover {
+      background: var(--tab-soft);
+      color: var(--tab-strong);
+    }
+    .scenario-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: var(--space-panel); margin-bottom: .65rem; overflow: hidden; }
+    .scenario-panel[hidden] { display: none; }
+    .scenario-panel-head { display: flex; justify-content: space-between; gap: .75rem; align-items: flex-start; margin-bottom: .55rem; padding-bottom: .5rem; border-bottom: 1px solid var(--line); }
+    .scenario-panel-head h3 { margin: 0 0 .2rem; font-size: var(--font-title); line-height: 1.2; }
+    .scenario-panel-actions { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; flex-wrap: wrap; }
+    .scenario-intro { color: var(--muted); margin: 0; line-height: 1.35; font-size: var(--font-md); }
+    .path-start-callout {
+      display: block;
+      margin-top: .45rem;
+      padding: .5rem .6rem;
+      border: 1px solid var(--accent-line);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-sm);
+      background: linear-gradient(90deg, var(--accent-soft), #fff);
+      color: var(--text);
+      font-size: var(--font-base);
+      font-weight: 700;
+      box-shadow: var(--shadow-card);
+    }
+    .path-start-callout strong { color: var(--accent-2); margin-right: .15rem; }
+    .scenario-badge { border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--accent-2); border-radius: 999px; font-size: var(--font-sm); font-weight: 800; padding: .18rem .42rem; white-space: nowrap; }
+    .scenario-kpis { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: .4rem; margin-bottom: .55rem; }
+    .scenario-kpi { border: 1px solid var(--line); background: var(--surface-soft); border-radius: var(--radius-sm); padding: var(--space-card-y) var(--space-card-x); min-width: 0; }
+    .scenario-kpi span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .14rem; }
+    .scenario-kpi strong { display: block; overflow-wrap: anywhere; font-size: var(--font-base); line-height: 1.2; }
+    .scenario-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr); gap: .65rem; align-items: start; }
+    .scenario-box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-soft); padding: .55rem; min-width: 0; box-shadow: var(--shadow-card); }
+    .scenario-box h4 { margin: 0 0 .45rem; font-size: var(--font-section); line-height: 1.2; }
+    .scenario-stack-head { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .4rem; }
+    .scenario-stack-scale { width: 100%; height: 28px; background: var(--chart-track); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+    .scenario-stack { display: flex; height: 100%; min-width: 2px; }
+    .scenario-segment { min-width: 2px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: var(--font-xs); font-weight: 800; overflow: hidden; white-space: nowrap; text-shadow: 0 1px 1px rgba(0,0,0,.25); }
+    .scenario-segment-label { overflow: hidden; text-overflow: ellipsis; padding: 0 .3rem; }
+    .scenario-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .34rem; margin-top: .45rem; font-size: var(--font-sm); }
+    .scenario-legend-item { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: .42rem; align-items: center; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; padding: .32rem .42rem; }
+    .scenario-legend-dot { width: 10px; height: 10px; background: var(--segment-color); }
+    .scenario-legend-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text); }
+    .scenario-legend-value { color: var(--muted); white-space: nowrap; font-weight: 700; text-align: right; }
+    .scenario-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+    .scenario-detail { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); padding: var(--space-card-y) var(--space-card-x); min-width: 0; }
+    .scenario-detail span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 700; margin-bottom: .12rem; line-height: 1.2; }
+    .scenario-detail strong { display: block; overflow-wrap: anywhere; font-size: var(--font-base); line-height: 1.2; }
+    .scenario-subsection-title { margin: .65rem 0 .45rem !important; padding-top: .55rem; border-top: 1px solid var(--line); color: var(--scenario-strong) !important; }
+    .scenario-outcome-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; margin-bottom: .45rem; }
+    .scenario-outcome-grid .scenario-detail { border-color: var(--scenario-line); background: #fff; box-shadow: inset 3px 0 0 var(--scenario-accent); }
+    .scenario-highlight-card { border-color: var(--scenario-accent) !important; background: var(--scenario-soft) !important; box-shadow: inset 4px 0 0 var(--scenario-accent); }
+    .scenario-highlight-card span { color: var(--scenario-strong) !important; }
+    .scenario-highlight-card strong { color: var(--scenario-strong); font-size: 1.05rem; }
+    .scenario-compact-table { margin-top: .45rem; font-size: var(--font-sm); }
+    .scenario-compact-table th,
+    .scenario-compact-table td { vertical-align: middle; }
+    .scenario-compact-table td:last-child,
+    .scenario-compact-table th:last-child { text-align: right; white-space: nowrap; }
+    .scenario-placement-mini { margin-top: .5rem; }
+    .scenario-placement-mini .placement-mini-track { height: 24px; }
+    .scenario-placement-mini .placement-mini-native,
+    .scenario-placement-mini .placement-mini-ocvs { display: flex; align-items: center; justify-content: center; color: #fff; font-size: var(--font-xs); font-weight: 800; overflow: hidden; white-space: nowrap; }
+    .scenario-guidance { display: grid; gap: .3rem; margin: .5rem 0 0; padding: 0; list-style: none; }
+    .scenario-guidance li { border: 1px solid var(--line); background: var(--surface); padding: .34rem .42rem; }
+    .hybrid-guidance-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .seg-compute { --segment-color: var(--compute); }
+    .seg-storage { --segment-color: var(--storage); }
+    .seg-license { --segment-color: var(--license); }
+    .seg-hosts { --segment-color: var(--hosts); }
+    .seg-ocvs-storage { --segment-color: var(--ocvs-storage); }
+    .seg-vmware-license { --segment-color: var(--vmware-license); }
+    .scenario-segment.seg-compute,
+    .scenario-segment.seg-storage,
+    .scenario-segment.seg-license,
+    .scenario-segment.seg-hosts,
+    .scenario-segment.seg-ocvs-storage,
+    .scenario-segment.seg-vmware-license { background: var(--segment-color); }
+    .scenario-segment.seg-storage { color: #111827; text-shadow: none; }
+    .shape-price-chart { border: 1px solid var(--line); background: var(--surface); margin-top: .55rem; }
+    .shape-price-chart h3 { margin: 0; padding: .45rem .55rem; border-bottom: 1px solid var(--line); font-size: var(--font-section); }
+    .shape-bars { display: grid; gap: 0; }
+    .shape-bar-row { display: grid; grid-template-columns: minmax(180px, .85fr) 1fr minmax(230px, 1fr); gap: .55rem; align-items: center; padding: .45rem .55rem; border-top: 1px solid var(--line); }
+    .shape-bar-row:first-child { border-top: 0; }
+    .shape-bar-row.is-selected { background: #eff6ff; box-shadow: inset 4px 0 0 var(--chart-native); }
+    .shape-bar-row.is-best-fit { background: #ecfdf5; box-shadow: inset 4px 0 0 #16a34a; }
+    .shape-bar-row.is-selected.is-best-fit { background: linear-gradient(90deg, #ecfdf5 0, #eff6ff 100%); box-shadow: inset 4px 0 0 #16a34a; }
+    .shape-name-line { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+    .shape-name { font-weight: 700; }
+    .shape-badge { display: inline-flex; align-items: center; border: 1px solid var(--line); background: #fff; color: var(--muted); padding: .08rem .28rem; font-size: var(--font-xs); font-weight: 800; line-height: 1.2; }
+    .shape-badge-best { border-color: #16a34a; background: #dcfce7; color: #166534; }
+    .shape-badge-selected { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent-2); }
+    .shape-meta { color: var(--muted); font-size: var(--font-sm); margin-top: .15rem; }
+    .shape-track { height: 16px; background: var(--chart-track); border: 1px solid var(--line); }
+    .shape-fill { height: 100%; background: var(--accent); min-width: 4px; }
+    .shape-cost { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; font-size: var(--font-sm); }
+    .shape-cost span { border: 1px solid var(--line); background: #fbfcfe; padding: .22rem .3rem; }
+    .price-table, .ocvs-sizing-table, .vmware-license-table { width: 100%; border-collapse: collapse; background: #fff; margin-top: .5rem; font-size: var(--font-md); }
+    .price-table th, .price-table td, .ocvs-sizing-table th, .ocvs-sizing-table td, .vmware-license-table th, .vmware-license-table td { border: 1px solid var(--line); padding: .38rem .45rem; vertical-align: top; }
+    .price-table th, .price-table td { vertical-align: middle; }
+    .price-table th, .ocvs-sizing-table th, .vmware-license-table th { background: #f2f4f8; }
+    .price-table td:nth-child(1), .price-table td:nth-child(3), .price-table td:nth-child(4), .price-table td:nth-child(5), .price-table td:nth-child(6), .price-table td:nth-child(7) { text-align: right; white-space: nowrap; }
+    .price-table th:nth-child(1), .price-table td:nth-child(1) { text-align: center; }
+    .ocvs-sizing-table td:not(:first-child), .ocvs-sizing-table th:not(:first-child) { text-align: right; white-space: nowrap; }
+    .hybrid-split-table td:nth-child(2), .hybrid-split-table th:nth-child(2) { text-align: left; white-space: normal; }
+    .hybrid-guidance-title { margin-top: .65rem !important; padding-top: .55rem; border-top: 1px solid var(--line); }
+    .hybrid-placement-planner { margin-top: .65rem; }
+    .placement-planner-head { display: flex; justify-content: space-between; gap: .75rem; align-items: flex-start; padding-bottom: .45rem; border-bottom: 1px solid var(--line); margin-bottom: .5rem; }
+    .placement-planner-head strong { display: block; font-size: var(--font-section); margin-bottom: .12rem; }
+    .placement-planner-head span { color: var(--muted); font-size: var(--font-sm); line-height: 1.3; }
+    .placement-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: .35rem; margin-bottom: .55rem; }
+    .placement-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(150px, .45fr) auto; gap: .4rem; align-items: center; margin-bottom: .5rem; }
+    .placement-toolbar input, .placement-toolbar select { min-height: 31px; }
+    .placement-actions { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: flex-end; }
+    .placement-actions button { background: #fff; color: var(--text); border-color: var(--line-strong); }
+    .placement-actions button:hover { color: var(--accent); border-color: var(--accent); background: #fff; }
+    .placement-table-wrap { border: 1px solid var(--line); background: var(--surface); max-height: 430px; overflow: auto; }
+    .hybrid-placement-table { min-width: 1120px; margin: 0; }
+    .hybrid-placement-table th { position: sticky; top: 0; z-index: 1; }
+    .hybrid-placement-table th, .hybrid-placement-table td { vertical-align: middle; }
+    .hybrid-placement-table select { min-width: 150px; }
+    .hybrid-placement-table tr.is-manual td { background: #fffaf0; }
+    .hybrid-placement-table tr.is-manual select { border-color: #f59e0b; background: #fff7e6; }
+    .placement-live-note { border: 1px solid #f59e0b; background: #fff7e6; color: #7a4300; padding: .45rem .55rem; margin: -.15rem 0 .55rem; font-size: var(--font-sm); font-weight: 700; }
+    .placement-live-note[hidden] { display: none; }
+    .placement-note { color: var(--muted); font-size: var(--font-sm); margin-top: .4rem; }
+    .vmware-license-table td:not(:first-child), .vmware-license-table th:not(:first-child) { text-align: right; white-space: nowrap; }
+    .assumption-strip { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .45rem; }
+    .assumption-strip span { border: 1px solid var(--line); background: #f8faff; padding: .22rem .35rem; font-size: var(--font-sm); }
+    .pricing-note { color: var(--danger); font-weight: 600; margin-top: .5rem; }
+    .summary-split { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .75fr); gap: .75rem; align-items: stretch; margin-top: .4rem; }
+    .summary-right { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: .55rem; box-shadow: var(--shadow-card); }
+    .summary-right h4 { margin: 0 0 .5rem 0; font-size: var(--font-section); line-height: 1.2; }
+    .summary-right { position: relative; }
+    .native-summary { border-left-color: var(--accent); background: var(--surface); }
+    .native-summary > strong { display: block; color: var(--text); margin-bottom: .25rem; }
+    .native-section-head { display: flex; justify-content: space-between; gap: .75rem; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: .45rem; margin-bottom: .55rem; }
+    .native-section-head strong { display: block; font-size: var(--font-section); line-height: 1.2; margin-bottom: .12rem; }
+    .native-section-copy { display: block; color: var(--muted); font-size: var(--font-sm); line-height: 1.3; }
+    .native-summary .summary-right { background: var(--surface-soft); border-color: var(--line); }
+    .native-summary .discount-box { background: var(--surface-soft); border-color: var(--line); }
+    #scenario-panel-native .native-summary,
+    #scenario-panel-native .shape-price-chart { border-color: var(--scenario-line); border-left-color: var(--scenario-accent); }
+    #scenario-panel-ocvs .native-summary,
+    #scenario-panel-ocvs .ocvs-section,
+    #scenario-panel-ocvs .shape-price-chart { border-color: var(--scenario-line); border-left-color: var(--scenario-accent); }
+    #scenario-panel-hybrid .native-summary,
+    #scenario-panel-hybrid .hybrid-summary,
+    #scenario-panel-hybrid .hybrid-ocvs-sizing,
+    #scenario-panel-hybrid .hybrid-placement-planner { border-color: var(--scenario-line); border-left-color: var(--scenario-accent); }
+    #scenario-panel-native .native-summary > strong,
+    #scenario-panel-ocvs .native-summary > strong,
+    #scenario-panel-hybrid .native-summary > strong { color: var(--scenario-strong); }
+    #scenario-panel-native .summary-right,
+    #scenario-panel-native .discount-box,
+    #scenario-panel-ocvs .summary-right,
+    #scenario-panel-ocvs .discount-box,
+    #scenario-panel-hybrid .summary-right,
+    #scenario-panel-hybrid .discount-box { background: #fff; border-color: var(--scenario-line); }
+    #scenario-panel-native .native-step-label,
+    #scenario-panel-ocvs .ocvs-step-label,
+    #scenario-panel-hybrid .ocvs-step-label { border-bottom-color: var(--scenario-line); }
+    #scenario-panel-native .native-step-label h4,
+    #scenario-panel-ocvs .ocvs-step-label h4,
+    #scenario-panel-hybrid .ocvs-step-label h4 { color: var(--scenario-strong); }
+    #scenario-panel-native .scenario-grid,
+    #scenario-panel-hybrid .scenario-grid { grid-template-columns: minmax(360px, .82fr) minmax(520px, 1.18fr); align-items: start; }
+    #scenario-panel-native .scenario-box,
+    #scenario-panel-hybrid .scenario-box { background: #fff; border-color: var(--scenario-line); }
+    #scenario-panel-native .native-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; }
+    #scenario-panel-native .summary-split { grid-template-columns: minmax(0, 1.05fr) minmax(390px, .82fr); align-items: start; }
+    #scenario-panel-ocvs .scenario-grid { grid-template-columns: minmax(360px, .82fr) minmax(520px, 1.18fr); align-items: start; }
+    #scenario-panel-ocvs .scenario-box { background: #fff; border-color: var(--scenario-line); }
+    .native-table-head { margin-top: .7rem; align-items: center; }
+    .native-table-head button { white-space: nowrap; }
+    .hybrid-ocvs-sizing { --scenario-accent: var(--chart-ocvs); --scenario-strong: #00695f; --scenario-soft: #e7fff8; --scenario-line: #5eead4; }
+    .hybrid-ocvs-grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(360px, 1.05fr); gap: .65rem; align-items: start; }
+    .hybrid-ocvs-grid .scenario-box { background: #fff; border-color: var(--scenario-line); }
+    .hybrid-ocvs-control-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .hybrid-ocvs-control-grid .control-field:first-child,
+    .hybrid-ocvs-control-grid .control-field:last-child { grid-column: 1 / -1; }
+    .hybrid-sizing-note { border: 1px solid var(--scenario-line); background: var(--scenario-soft); color: var(--muted); padding: .45rem .55rem; margin-top: .5rem; line-height: 1.35; font-size: var(--font-sm); }
+    .discount-box { margin-top: .75rem; padding: .65rem .75rem; background:#fff; border:1px solid var(--line); border-radius:var(--radius); }
+    .discount-box label { display:flex; align-items:center; gap:.5rem; font-weight:600; }
+    .discount-box input[type="number"] { width: 120px; }
+    .discount-box small { display:block; margin-top:.35rem; color:var(--muted); font-size: var(--font-sm); }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(20, 24, 35, 0.45); display: none; align-items: center; justify-content: center; z-index: 20; }
+    .modal { width: min(760px, 94vw); max-height: 82vh; overflow: auto; background: #fff; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
+    .modal-header { padding: .75rem .9rem; border-bottom: 1px solid var(--line); display:flex; justify-content: space-between; align-items: center; }
+    .modal-body { padding: .85rem .9rem; }
+    .modal-grid { display: grid; grid-template-columns: 1.2fr 1fr .8fr; gap: .5rem .75rem; align-items: center; }
+    .strategy-os-label strong { display: block; line-height: 1.25; }
+    .strategy-os-label small { display: block; color: var(--muted); font-size: var(--font-xs); margin-top: .1rem; }
+    .modal-actions { padding: .75rem .9rem; border-top: 1px solid var(--line); display:flex; justify-content: flex-end; gap:.5rem; }
+    .btn-secondary { background: #fff; color: var(--text); border: 1px solid var(--line-strong); }
+    .btn-secondary:hover { background: #fff; color: var(--accent); border-color: var(--accent); }
+    .cost-profile-head { display: flex; justify-content: space-between; gap: .6rem; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: .42rem; margin-bottom: .55rem; }
+    .cost-profile-head h4 { margin: 0; }
+    .cost-profile-head span { color: var(--muted); font-size: var(--font-sm); font-weight: 700; }
+    .cost-profile-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .45fr); gap: .55rem; align-items: stretch; margin-bottom: .55rem; }
+    .cost-driver-panel { min-width: 0; }
+    .cost-driver-stack { display: flex; width: 100%; height: 34px; border: 1px solid var(--line); background: var(--chart-track); overflow: hidden; }
+    .cost-driver-segment { min-width: 3px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: var(--font-xs); font-weight: 800; overflow: hidden; white-space: nowrap; text-shadow: 0 1px 1px rgba(0,0,0,.25); }
+    .cost-driver-segment[hidden] { display: none; }
+    .cost-driver-label { overflow: hidden; text-overflow: ellipsis; padding: 0 .28rem; }
+    .cost-driver-note { display: block; color: var(--muted); margin-top: .32rem; font-size: var(--font-sm); line-height: 1.3; }
+    .cost-total-card { border: 1px solid var(--line); background: var(--surface-soft); padding: .48rem .55rem; }
+    .cost-total-card span { display: block; color: var(--muted); font-size: var(--font-xs); font-weight: 800; margin-bottom: .12rem; }
+    .cost-total-card strong { display: block; font-size: 1.08rem; line-height: 1.2; }
+    .cost-total-card small { display: block; color: var(--muted); margin-top: .18rem; line-height: 1.3; }
+    .cost-split-legend { display: grid; gap: .32rem; }
+    .cost-split-row { display: grid; grid-template-columns: 10px minmax(74px, .7fr) minmax(88px, .65fr) 52px; gap: .42rem; align-items: center; border: 1px solid var(--line); background: #fff; padding: .32rem .42rem; min-width: 0; }
+    .cost-split-dot { width: 10px; height: 10px; background: var(--split-color); }
+    .cost-split-row strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-sm); }
+    .cost-split-row span:not(.cost-split-dot) { color: var(--muted); font-size: var(--font-sm); font-weight: 700; text-align: right; white-space: nowrap; }
+    .cost-split-row small { color: var(--muted); font-size: var(--font-sm); font-weight: 800; text-align: right; white-space: nowrap; }
+    .cost-split-cpu { --split-color: var(--cpu); }
+    .cost-split-ram { --split-color: var(--ram); }
+    .cost-split-storage { --split-color: var(--storage); }
+    .cost-split-vpu { --split-color: var(--ocvs-storage); }
+    .cost-split-license { --split-color: var(--license); }
+    .summary-table { width: 100%; border-collapse: collapse; background: #fff; margin-top: .5rem; font-size: var(--font-base); }
+    .summary-table th, .summary-table td { border: 1px solid var(--line); padding: .35rem .42rem; text-align: center; vertical-align: middle; }
+    .summary-table th { background: #f2f4f8; }
+    .summary-table th.th-cpu { background: var(--cpu); color: #fff; }
+    .summary-table th.th-ram { background: var(--ram); color: #fff; }
+    .summary-table th.th-hosts { background: var(--hosts); color: #fff; }
+    .summary-table th.th-storage { background: var(--storage); color: #111827; }
+    .summary-table th.th-ocvs-storage { background: var(--ocvs-storage); color: #fff; }
+    .summary-table th.th-vpu { background: var(--ocvs-storage); color: #fff; }
+    .summary-table th.th-license { background: var(--license); color: #fff; }
+    .summary-table th.th-vmware-license { background: var(--vmware-license); color: #fff; }
+    .summary-table td:first-child, .summary-table th:first-child { text-align: left; white-space: nowrap; }
+    .vm-table th.sortable { position: relative; cursor: pointer; user-select: none; padding-right: 1.35rem; }
+    .vm-table th.sortable .sort-icon {
+      position: absolute;
+      top: .18rem;
+      right: .35rem;
+      font-size: .72rem;
+      line-height: 1;
+      opacity: .7;
+    }
+    .vm-table th.sortable.sorted-asc .sort-icon::before { content: '▲'; }
+    .vm-table th.sortable.sorted-desc .sort-icon::before { content: '▼'; }
+    .vm-table th.sortable .sort-icon::before { content: '⇅'; }
+    .flash { padding: .5rem .65rem; border-radius: var(--radius-sm); margin-bottom: .6rem; opacity: 1; transform: translateY(0); transition: opacity .25s ease, transform .25s ease, margin .25s ease, padding .25s ease; }
+    .flash.success { background: #e9f8ef; color: #136b2f; border: 1px solid #acdcb8; }
+    .flash.error { background: #ffefef; color: #912828; border: 1px solid #f1b7b7; }
+    .flash.is-hiding { opacity: 0; transform: translateY(-6px); margin: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; background: #fff; font-size: var(--font-base); }
+    th, td { border: 1px solid var(--line); padding: .38rem .45rem; text-align: left; vertical-align: top; }
+    th { background: #f2f4f8; }
+    select { width: 100%; padding: .3rem .36rem; font: inherit; }
+    input[type="number"] { width: 100%; box-sizing: border-box; padding: .3rem .36rem; font: inherit; }
+    .ocpu-col { width: 70px; white-space: nowrap; }
+    .bulk-shape { margin-top: .35rem; }
+    .bulk-shape small { display: block; margin-bottom: .25rem; color: var(--muted); font-weight: normal; }
+    .cost-col { width: 110px; min-width: 110px; max-width: 130px; white-space: nowrap; }
+    .storage-cost { cursor: help; }
+    .cost-line { white-space: nowrap; }
+    .cost-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; }
+    .cost-cell { padding: .25rem .35rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #f8faff; }
+    .cost-label { font-size: var(--font-sm); color: var(--muted); display:block; }
+    .cost-value { font-weight: 600; }
+    .save-row { margin-top: .9rem; }
+    button { cursor: pointer; background: var(--accent); color: white; border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: .38rem .6rem; font-weight: 600; line-height: 1.2; font-size: var(--font-base); }
+    button:hover { background: var(--accent-2); border-color: var(--accent-2); }
+    code { background: #eff2f5; padding: 0.1rem 0.35rem; border-radius: 2px; }
+    @media (max-width: 1180px) {
+      .scenario-grid, .summary-split, .price-insight-grid, .price-scenario-grid { grid-template-columns: 1fr; }
+      #scenario-panel-native .scenario-grid,
+      #scenario-panel-native .summary-split { grid-template-columns: 1fr; }
+      .scenario-box, .summary-right { min-width: 0; }
+    }
+    @media (max-width: 980px) {
+      .wizard-steps, .control-grid, .hybrid-ocvs-grid, .hybrid-ocvs-control-grid, .summary-split, .workload-summary-grid, .workload-profile-grid, .profile-stat-grid, .path-context-grid, .path-grid, .price-cost-grid, .scenario-kpis, .scenario-grid, .scenario-details, .scenario-legend, .hybrid-guidance-grid, .placement-kpi-grid, .placement-toolbar { grid-template-columns: 1fr; }
+      #scenario-panel-native .native-detail-grid,
+      .scenario-outcome-grid,
+      .ocvs-outcome-grid,
+      .ocvs-decision-grid,
+      .ocvs-requirement-grid,
+      .ocvs-profile-grid,
+      .ocvs-validation-grid,
+      .ocvs-driver-strip,
+      .cost-profile-main { grid-template-columns: 1fr; }
+      .price-bar-row, .shape-bar-row, .warning-item { grid-template-columns: 1fr; }
+      .workspace-nav, .top-actions, .action-group { align-items: stretch; width: 100%; }
+      .workspace-nav-label { width: 100%; }
+      .scenario-panel-head { display: grid; }
+      .scenario-panel-actions { justify-content: flex-start; }
+    }
+  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/scenarios.css') }}" />
+  {% if active_scenario == 'price' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/results.css') }}" />
+  {% endif %}
+{% endblock %}
+{% block stage_content %}
+  <div class="container">
+    {% set currency_symbol_map = {
+      'EUR': '€',
+      'USD': '$',
+      'GBP': '£',
+      'JPY': '¥',
+      'CHF': 'CHF ',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'SGD': 'S$',
+      'SEK': 'kr ',
+      'NOK': 'kr ',
+      'DKK': 'kr '
+    } %}
+    {% set pricing_symbol = currency_symbol_map.get((pricing_currency or 'USD'), (pricing_currency or 'USD') ~ ' ') %}
+
+    {% set initial_titles = {
+      'native': 'Migration to OCI Native',
+      'ocvs': 'Migration to OCVS',
+      'hybrid': 'Migration to Hybrid Platform',
+      'price': 'Results & Export'
+    } %}
+    <h1 id="step4-main-title">{{ initial_titles.get(active_scenario, 'Migration to OCI Native') }}</h1>
+
+    {% if active_scenario == 'price' %}
+      {% include "_workload_profile.html" %}
+      {% include "_results_comparison.html" %}
+      {% include "_export_center.html" %}
+    {% else %}
+    <div class="top-actions">
+      {% if active_scenario != 'price' %}
+        <div class="workspace-nav" aria-label="Scenario workspace">
+          <span class="workspace-nav-label">Scenario workspace</span>
+          <div class="top-tabs" role="tablist" aria-label="Migration scenarios">
+          {% for view in scenario_views %}
+            <button
+              type="button"
+              id="scenario-tab-{{ view.id }}"
+              class="scenario-tab {% if active_scenario == view.id %}is-active{% endif %}"
+              role="tab"
+              aria-selected="{{ 'true' if active_scenario == view.id else 'false' }}"
+              aria-controls="scenario-panel-{{ view.id }}"
+              tabindex="{{ '0' if active_scenario == view.id else '-1' }}"
+              data-scenario-tab="{{ view.id }}"
+              data-dirty-navigation
+            >
+              {{ 'Native' if view.id == 'native' else view.title }}
+            </button>
+          {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+      <input type="hidden" id="active_scenario" name="active_scenario" value="{{ active_scenario }}" form="step4-form" />
+    </div>
+
+    <div id="shape-strategy-modal" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shape-strategy-title" tabindex="-1">
+        <div class="modal-header">
+          <strong id="shape-strategy-title">Set default shape strategy</strong>
+          <button type="button" id="close-shape-strategy" class="btn-secondary">Cancel</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-top:0;">Choose default OCI target shape and burst per unique OS. Apply stages the strategy; Save Settings applies it to all selected VMs.</p>
+          <div id="shape-strategy-grid" class="modal-grid">
+            {% for item in native_shape_strategy_rows %}
+              <div class="strategy-os-label">
+                <strong>{{ item.os_name }}</strong>
+                <small>{{ "{:,}".format(item.vm_count) }} VM(s)</small>
+              </div>
+              <select
+                data-os-name="{{ item.os_name }}"
+                data-role="shape"
+                aria-label="Default OCI target shape for {{ item.os_name }}"
+              >
+                {% for shape_name in shape_options %}
+                  <option value="{{ shape_name }}" {% if item.shape == shape_name %}selected{% endif %}>{{ shape_name }}</option>
+                {% endfor %}
+              </select>
+              <select
+                data-os-name="{{ item.os_name }}"
+                data-role="burst"
+                aria-label="Default burst setting for {{ item.os_name }}"
+              >
+                {% for burst_value in ['100%', '50%', '12.5%'] %}
+                  <option value="{{ burst_value }}" {% if item.burst == burst_value or (item.burst == '1:1' and burst_value == '100%') %}selected{% endif %}>{{ burst_value }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <p>No OS groups were found for the selected VM set.</p>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancel-shape-strategy" class="btn-secondary">Cancel</button>
+          <button type="button" id="apply-shape-strategy">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    {% set ocvs_selected = ocvs_price.selected %}
+    {% set ocvs_totals = ocvs_price.totals %}
+    {% set ocvs_policy = ocvs_price.policy %}
+    {% set best_scenario = scenario_comparison.best %}
+    <div class="price-comparison">
+      <div class="scenario-panels">
+        <section
+          id="scenario-panel-paths"
+          class="scenario-panel {% if active_scenario == 'paths' %}is-active{% endif %}"
+          role="region"
+          aria-label="Migration paths overview"
+          data-scenario-panel="paths"
+          {% if active_scenario != 'paths' %}hidden{% endif %}
+        >
+          <div class="scenario-panel-head">
+            <div>
+              <h3>Migration Paths</h3>
+              <p class="scenario-intro path-start-callout">
+                <strong>Start here:</strong> confirm the customer, price list, inventory source, and workload scope. Then open OCI Native, OCVS, and Hybrid to tune assumptions before reviewing the final price comparison.
+              </p>
+            </div>
+            <span class="scenario-badge">Assessment overview</span>
+          </div>
+
+          <div class="path-section-title">
+            <h3>Project Context</h3>
+            <span>Source data and report status</span>
+          </div>
+          <div class="path-context-grid">
+            <div class="path-context-card">
+              <span>Customer</span>
+              <strong>{{ customer_name or 'Not provided' }}</strong>
+            </div>
+            <div class="path-context-card">
+              <span>Source Price List</span>
+              <code>{{ source_pricelist_file or 'No pricelist file found' }}</code>
+            </div>
+            <div class="path-context-card">
+              <span>Inventory source</span>
+              <code>{{ source_vinfo_csv }}</code>
+            </div>
+            <div class="path-context-card">
+              <span>Last export</span>
+              <code data-last-export-file>{{ last_export_file or 'No export created yet' }}</code>
+            </div>
+          </div>
+
+          <div class="path-section-title">
+            <h3>Workload in Scope</h3>
+            <span>VMs selected in Step 2</span>
+          </div>
+          <div class="workload-summary">
+            <div class="workload-summary-head">
+              <h3>Workload Summary</h3>
+              <span>Used by all migration paths</span>
+            </div>
+            <div class="workload-scope-note">
+              This is the active workload baseline for OCI Native, OCVS, Hybrid, and Price Comparison.
+            </div>
+            <div class="workload-summary-grid">
+              <div class="workload-card">
+                <span>VMs</span>
+                <strong>{{ "{:,}".format(workload_summary.vm_count) }}</strong>
+              </div>
+              <div class="workload-card">
+                <span>vCPUs</span>
+                <strong>{{ "{:,}".format(workload_summary.total_vcpus) }}</strong>
+              </div>
+              <div class="workload-card">
+                <span>RAM</span>
+                <strong>{{ "{:,}".format(workload_summary.total_memory_gb) }} GB</strong>
+              </div>
+              <div class="workload-card">
+                <span>Storage</span>
+                <strong>{{ "{:,}".format(workload_summary.total_storage_gb) }} GB</strong>
+              </div>
+              <div class="workload-card">
+                <span>Powered on</span>
+                <strong>{{ "{:,}".format(workload_summary.powered_on_count) }}</strong>
+              </div>
+              <div class="workload-card">
+                <span>Powered off</span>
+                <strong>{{ "{:,}".format(workload_summary.powered_off_count) }}</strong>
+              </div>
+              <div class="workload-card">
+                <span>OCI Native supported</span>
+                <strong>{{ "{:,}".format(workload_summary.oci_supported_count) }}</strong>
+              </div>
+              <div class="workload-card">
+                <span>Not OCI Native supported</span>
+                <strong>{{ "{:,}".format(workload_summary.oci_not_supported_count) }}</strong>
+              </div>
+            </div>
+            <div class="workload-profile-grid" aria-label="Analyzed workload profile">
+              <div class="workload-profile-card">
+                <h4>Operating System Mix</h4>
+                <div class="os-bar-list">
+                  {% for os_row in workload_summary.top_os_rows %}
+                    <div class="os-bar-row">
+                      <div class="os-bar-head">
+                        <strong title="{{ os_row.os_name }}">{{ os_row.os_name }}</strong>
+                        <span>{{ "{:,}".format(os_row.count) }} VM(s) | {{ "%.1f"|format(os_row.pct) }}%</span>
+                      </div>
+                      <div class="os-bar-track">
+                        <div class="os-bar-fill" style="width: {{ "%.1f"|format(os_row.pct) }}%;"></div>
+                      </div>
+                    </div>
+                  {% else %}
+                    <div class="workload-note">No selected VMs available for OS analysis.</div>
+                  {% endfor %}
+                  {% if workload_summary.other_os_count %}
+                    <div class="os-bar-row">
+                      <div class="os-bar-head">
+                        <strong>Other operating systems</strong>
+                        <span>{{ "{:,}".format(workload_summary.other_os_count) }} VM(s) | {{ "%.1f"|format(workload_summary.other_os_pct) }}%</span>
+                      </div>
+                      <div class="os-bar-track">
+                        <div class="os-bar-fill" style="width: {{ "%.1f"|format(workload_summary.other_os_pct) }}%;"></div>
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="workload-profile-card">
+                <h4>Power State Mix</h4>
+                <div class="profile-mix">
+                  <div class="mix-track" aria-label="Power state distribution">
+                    <div class="mix-part mix-on" style="width: {{ "%.1f"|format(workload_summary.powered_on_pct) }}%;"></div>
+                    <div class="mix-part mix-off" style="width: {{ "%.1f"|format(workload_summary.powered_off_pct) }}%;"></div>
+                    <div class="mix-part mix-unknown" style="width: {{ "%.1f"|format(workload_summary.unknown_power_pct) }}%;"></div>
+                  </div>
+                  <div class="mix-legend">
+                    <div class="mix-legend-row">
+                      <span class="mix-label"><i class="mix-dot mix-dot-on"></i>Powered on</span>
+                      <strong>{{ "{:,}".format(workload_summary.powered_on_count) }} | {{ "%.1f"|format(workload_summary.powered_on_pct) }}%</strong>
+                    </div>
+                    <div class="mix-legend-row">
+                      <span class="mix-label"><i class="mix-dot mix-dot-off"></i>Powered off</span>
+                      <strong>{{ "{:,}".format(workload_summary.powered_off_count) }} | {{ "%.1f"|format(workload_summary.powered_off_pct) }}%</strong>
+                    </div>
+                    <div class="mix-legend-row">
+                      <span class="mix-label"><i class="mix-dot mix-dot-unknown"></i>Unknown</span>
+                      <strong>{{ "{:,}".format(workload_summary.unknown_power_count) }} | {{ "%.1f"|format(workload_summary.unknown_power_pct) }}%</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="workload-profile-card">
+                <h4>OCI Native Readiness</h4>
+                <div class="profile-mix">
+                  <div class="mix-track" aria-label="OCI Native readiness distribution">
+                    <div class="mix-part mix-supported" style="width: {{ "%.1f"|format(workload_summary.oci_supported_pct) }}%;"></div>
+                    <div class="mix-part mix-unsupported" style="width: {{ "%.1f"|format(workload_summary.oci_not_supported_pct) }}%;"></div>
+                  </div>
+                  <div class="mix-legend">
+                    <div class="mix-legend-row">
+                      <span class="mix-label"><i class="mix-dot mix-dot-supported"></i>OCI Native supported</span>
+                      <strong>{{ "{:,}".format(workload_summary.oci_supported_count) }} | {{ "%.1f"|format(workload_summary.oci_supported_pct) }}%</strong>
+                    </div>
+                    <div class="mix-legend-row">
+                      <span class="mix-label"><i class="mix-dot mix-dot-unsupported"></i>OCVS review</span>
+                      <strong>{{ "{:,}".format(workload_summary.oci_not_supported_count) }} | {{ "%.1f"|format(workload_summary.oci_not_supported_pct) }}%</strong>
+                    </div>
+                  </div>
+                </div>
+                <div class="profile-stat-grid">
+                  <div class="profile-stat">
+                    <span>Avg vCPU / VM</span>
+                    <strong>{{ "%.1f"|format(workload_summary.avg_vcpu_per_vm) }}</strong>
+                  </div>
+                  <div class="profile-stat">
+                    <span>Avg RAM / VM</span>
+                    <strong>{{ "%.1f"|format(workload_summary.avg_memory_gb_per_vm) }} GB</strong>
+                  </div>
+                  <div class="profile-stat">
+                    <span>Avg Storage / VM</span>
+                    <strong>{{ "%.0f"|format(workload_summary.avg_storage_gb_per_vm) }} GB</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% if workload_summary.unknown_power_count or not workload_summary.support_source_available %}
+              <div class="workload-note">
+                {% if workload_summary.unknown_power_count %}
+                  {{ "{:,}".format(workload_summary.unknown_power_count) }} VM(s) have unknown power state.
+                {% endif %}
+                {% if not workload_summary.support_source_available %}
+                  OCI native support source is not loaded; validate supported/not-supported split.
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="path-section-title">
+            <h3>Migration Path Options</h3>
+            <span>Open a path to tune sizing and assumptions</span>
+          </div>
+          <div class="path-grid">
+            <div class="path-card path-card-native">
+              <span class="path-card-label">Modernize and Optimize</span>
+              <h4>OCI Native</h4>
+              <p>Migrate suitable VMware workloads to OCI Compute and Block Volume, reducing dependency on virtualization platforms while building a foundation for long-term cloud optimization and application modernization.</p>
+              <div class="path-card-section">
+                <strong>Best suited for</strong>
+                <ul>
+                  <li>Workloads fully supported on OCI.</li>
+                  <li>Organizations pursuing cloud transformation and platform modernization.</li>
+                  <li>Environments seeking to reduce VMware licensing and operational overhead.</li>
+                </ul>
+              </div>
+              <div class="path-card-section">
+                <strong>Benefits</strong>
+                <ul>
+                  <li>Maximum cloud adoption and modernization potential.</li>
+                  <li>Reduced infrastructure complexity.</li>
+                  <li>Access to OCI-native services, automation, and cost optimization.</li>
+                </ul>
+              </div>
+              <div class="path-card-section path-tools">
+                <strong>Migration tool options</strong>
+                <ul>
+                  <li>OCI Cloud Migrations for discovery, replication, and migration planning.</li>
+                  <li>OCI Database Migration and Zero Downtime Migration for database workloads.</li>
+                  <li>Terraform and OCI Resource Manager for repeatable target deployment.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="path-card path-card-ocvs">
+              <span class="path-card-label">Lift &amp; Shift</span>
+              <h4>Oracle Cloud VMware Solution (OCVS)</h4>
+              <p>Lift and shift VMware workloads to OCVS, moving them to OCI while reusing existing VMware investments, tools, skills, and operating processes with minimal business disruption.</p>
+              <div class="path-card-section">
+                <strong>Best suited for</strong>
+                <ul>
+                  <li>Business-critical applications requiring VMware compatibility.</li>
+                  <li>Complex dependencies, legacy operating systems, or VMware-specific tooling.</li>
+                  <li>Organizations prioritizing migration speed and operational continuity.</li>
+                </ul>
+              </div>
+              <div class="path-card-section">
+                <strong>Benefits</strong>
+                <ul>
+                  <li>Minimal application changes.</li>
+                  <li>Retain VMware skills, processes, and tooling.</li>
+                  <li>Reduced migration complexity and accelerated cloud adoption.</li>
+                </ul>
+              </div>
+              <div class="path-card-section path-tools">
+                <strong>Migration tool options</strong>
+                <ul>
+                  <li>VMware HCX for large-scale migration and workload mobility.</li>
+                  <li>Existing VMware backup and replication tools for recovery-based migration.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="path-card path-card-hybrid">
+              <span class="path-card-label">Balance Modernization and Risk</span>
+              <h4>Hybrid</h4>
+              <p>Adopt a phased strategy by moving OCI-compatible workloads to OCI Native while retaining complex, unsupported, or higher-risk workloads on OCVS to balance modernization with stability.</p>
+              <div class="path-card-section">
+                <strong>Best suited for</strong>
+                <ul>
+                  <li>Large and diverse application estates.</li>
+                  <li>Organizations seeking gradual VMware reduction.</li>
+                  <li>Customers requiring phased migration waves and dependency validation.</li>
+                </ul>
+              </div>
+              <div class="path-card-section">
+                <strong>Benefits</strong>
+                <ul>
+                  <li>Balanced risk and modernization approach.</li>
+                  <li>Incremental cloud transformation with reduced remediation effort.</li>
+                  <li>Flexibility to modernize workloads over time.</li>
+                </ul>
+              </div>
+              <div class="path-card-section path-tools">
+                <strong>Migration tool options</strong>
+                <ul>
+                  <li>OCI Cloud Migrations for OCI Native candidates.</li>
+                  <li>VMware HCX for OCVS migration waves.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="assessment-validation">
+            <strong>Assessment validation</strong>
+            <span>Use this as the assessment baseline. Validate VM placement, right-sizing, workload dependencies, region, currency, discount, and licensing assumptions with official OCI tools before customer sign-off.</span>
+          </div>
+        </section>
+
+        <section
+          id="scenario-panel-price"
+          class="scenario-panel {% if active_scenario == 'price' %}is-active{% endif %}"
+          role="region"
+          aria-label="Results and price comparison"
+          data-scenario-panel="price"
+          {% if active_scenario != 'price' %}hidden{% endif %}
+        >
+          <div class="scenario-panel-head">
+            <div>
+              <h3>Migration Path Price Comparison</h3>
+              <p class="scenario-intro">Compare monthly, annual, and 3-year infrastructure and licensing price signals across the migration paths.</p>
+            </div>
+            <span class="scenario-badge">Lowest modeled price: {{ best_scenario.label }}</span>
+          </div>
+
+          {% set ranked_price_rows = scenario_chart_rows|sort(attribute='monthly_cost') %}
+          {% set best_delta_abs = (best_scenario.monthly_delta if best_scenario.monthly_delta >= 0 else -best_scenario.monthly_delta) %}
+          <div class="price-insight-grid">
+            <div class="price-insight-card is-leader">
+              <span>Lowest modeled price</span>
+              <strong>{{ best_scenario.label }}</strong>
+              <small>
+                {% if best_scenario.id == 'native' %}
+                  Native is the current baseline and the lowest modeled price.
+                {% elif best_scenario.monthly_delta < 0 %}
+                  {{ pricing_symbol }}{{ "{:,.0f}".format(best_delta_abs) }} / month below OCI Native; {{ pricing_symbol }}{{ "{:,.0f}".format(best_delta_abs * 12) }} per year.
+                {% else %}
+                  {{ pricing_symbol }}{{ "{:,.0f}".format(best_delta_abs) }} / month above Native, but still the lowest modeled path in this comparison.
+                {% endif %}
+              </small>
+            </div>
+            <div class="price-insight-card">
+              <span>Path monthly spread</span>
+              <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario_comparison.monthly_spread) }}</strong>
+              <small>Difference between the lowest and highest modeled monthly price.</small>
+            </div>
+            <div class="price-insight-card">
+              <span>3-year price gap</span>
+              <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario_comparison.three_year_spread) }}</strong>
+              <small>Projected 36-month infrastructure and licensing price difference.</small>
+            </div>
+          </div>
+
+          <div class="comparison-note">
+            Indicative migration-path price comparison based on the selected workload, active OCI price list, and current sizing assumptions. Values include modeled OCI infrastructure and licensing charges only. Validate final pricing with the official Oracle estimator; migration delivery, remediation, downtime, support changes, and one-time transition costs are outside this view.
+          </div>
+
+          <div class="price-scenario-grid">
+            {% for scenario in ranked_price_rows %}
+              {% set scenario_delta_abs = (scenario.monthly_delta if scenario.monthly_delta >= 0 else -scenario.monthly_delta) %}
+              <div class="price-scenario-card price-card-{{ scenario.id }} {% if scenario.id == best_scenario.id %}is-best{% endif %}">
+                <div class="price-card-head">
+                  <div>
+                    <h4>{{ scenario.label }}</h4>
+                    <p class="price-card-detail">{{ scenario.sizing_basis }}</p>
+                  </div>
+                  <span class="price-rank price-card-medal {% if loop.index == 1 %}price-card-medal-gold{% elif loop.index == 2 %}price-card-medal-silver{% else %}price-card-medal-bronze{% endif %}">
+                    <span class="medal-symbol" aria-hidden="true">{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% else %}🥉{% endif %}</span>
+                    Rank {{ loop.index }}
+                  </span>
+                </div>
+                <div class="price-metric-grid">
+                  <div class="price-metric">
+                    <span>Monthly cost</span>
+                    <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.monthly_cost) }}</strong>
+                  </div>
+                  <div class="price-metric">
+                    <span>Annual / 3-year cost</span>
+                    <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.yearly_cost) }}</strong>
+                    <small>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.monthly_cost * 36) }} over 3 years</small>
+                  </div>
+                  <div class="price-metric">
+                    <span>Cost / VM / month</span>
+                    <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.cost_per_vm) }}</strong>
+                  </div>
+                  <div class="price-metric">
+                    <span>Delta vs Native</span>
+                    <strong class="{% if scenario.monthly_delta > 0 %}delta-cost{% elif scenario.monthly_delta < 0 %}delta-save{% endif %}">
+                      {% if scenario.id == 'native' %}
+                        Baseline
+                      {% else %}
+                        {% if scenario.monthly_delta > 0 %}+{% elif scenario.monthly_delta < 0 %}-{% endif %}{{ pricing_symbol }}{{ "{:,.0f}".format(scenario_delta_abs) }}/mo
+                      {% endif %}
+                    </strong>
+                  </div>
+                </div>
+                <div class="placement-mini">
+                  <div class="placement-mini-head">
+                    <span>{{ "{:,}".format(scenario.native_vm_count) }} Native</span>
+                    <span>{{ "{:,}".format(scenario.ocvs_vm_count) }} OCVS</span>
+                  </div>
+                  <div class="placement-mini-track" aria-label="{{ scenario.label }} workload placement">
+                    <div class="placement-mini-native" style="width: {{ '%.1f'|format(scenario.native_vm_pct) }}%;"></div>
+                    <div class="placement-mini-ocvs" style="width: {{ '%.1f'|format(scenario.ocvs_vm_pct) }}%;"></div>
+                  </div>
+                </div>
+                <p class="price-card-detail">{{ scenario.detail }}</p>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="price-visual">
+            <div class="price-visual-head">
+              <h4>Ranked Monthly Price</h4>
+              <span>Sorted from lowest to highest modeled monthly cost</span>
+            </div>
+            <div class="price-bars">
+              {% for scenario in ranked_price_rows %}
+                {% set scenario_delta_abs = (scenario.monthly_delta if scenario.monthly_delta >= 0 else -scenario.monthly_delta) %}
+                <div class="price-bar-row price-row-{{ scenario.id }} {% if scenario.id == best_scenario.id %}is-best{% endif %}">
+                  <div class="price-bar-label">
+                    <span class="price-rank">
+                      Rank {{ loop.index }}
+                    </span>
+                    <strong>{{ scenario.label }}</strong>
+                    <small>
+                      {% if scenario.id == 'native' %}
+                        Native baseline
+                      {% else %}
+                        {% if scenario.monthly_delta > 0 %}+{% elif scenario.monthly_delta < 0 %}-{% endif %}{{ pricing_symbol }}{{ "{:,.0f}".format(scenario_delta_abs) }} / month vs Native
+                      {% endif %}
+                    </small>
+                  </div>
+                  <div class="price-bar-track" title="{{ scenario.label }} monthly price {{ pricing_symbol }}{{ '{:,.0f}'.format(scenario.monthly_cost) }}">
+                    <div class="price-bar-fill price-bar-{{ scenario.id }}" style="width: {{ '%.1f'|format(scenario.bar_pct) }}%;">
+                      {{ pricing_symbol }}{{ "{:,.0f}".format(scenario.monthly_cost) }}
+                    </div>
+                  </div>
+                  <div class="price-bar-value">
+                    <span>Monthly</span>
+                    <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.monthly_cost) }}</strong>
+                  </div>
+                  <div class="price-bar-value">
+                    <span>Annual</span>
+                    <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.yearly_cost) }}</strong>
+                  </div>
+                  <div class="price-bar-value">
+                    <span>3-year</span>
+                    <strong>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.monthly_cost * 36) }}</strong>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="price-table-wrap">
+            <table class="price-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Migration path</th>
+                  <th>Monthly cost</th>
+                  <th>Annual cost</th>
+                  <th>3-year cost</th>
+                  <th>Cost / VM / month</th>
+                  <th>Delta vs Native / month</th>
+                  <th>Placement</th>
+                  <th>Sizing basis</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for scenario in ranked_price_rows %}
+                  {% set scenario_delta_abs = (scenario.monthly_delta if scenario.monthly_delta >= 0 else -scenario.monthly_delta) %}
+                  <tr class="{% if scenario.id == best_scenario.id %}best-row{% endif %}">
+                    <td><span class="rank-number">{{ loop.index }}</span></td>
+                    <td>
+                      <strong>{{ scenario.label }}</strong>
+                    </td>
+                    <td>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.monthly_cost) }}</td>
+                    <td>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.yearly_cost) }}</td>
+                    <td>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.monthly_cost * 36) }}</td>
+                    <td>{{ pricing_symbol }}{{ "{:,.0f}".format(scenario.cost_per_vm) }}</td>
+                    <td class="{% if scenario.monthly_delta > 0 %}price-delta delta-cost{% else %}price-delta delta-save{% endif %}">
+                      {% if scenario.id == 'native' %}
+                        Baseline
+                      {% else %}
+                        {% if scenario.monthly_delta > 0 %}+{% elif scenario.monthly_delta < 0 %}-{% endif %}{{ pricing_symbol }}{{ "{:,.0f}".format(scenario_delta_abs) }}
+                      {% endif %}
+                    </td>
+                    <td>{{ "{:,}".format(scenario.native_vm_count) }} Native / {{ "{:,}".format(scenario.ocvs_vm_count) }} OCVS</td>
+                    <td>{{ scenario.sizing_basis }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {% for view in scenario_views %}
+          <section
+            id="scenario-panel-{{ view.id }}"
+            class="scenario-panel {% if active_scenario == view.id %}is-active{% endif %}"
+            role="tabpanel"
+            aria-labelledby="scenario-tab-{{ view.id }}"
+            data-scenario-panel="{{ view.id }}"
+            {% if active_scenario != view.id %}hidden{% endif %}
+          >
+            {% include "_scenario_header.html" %}
+
+            {% if view.id == 'native' %}
+              {% include "_scenario_native.html" %}
+            {% elif view.id == 'ocvs' %}
+              {% include "_scenario_ocvs.html" %}
+            {% elif view.id == 'hybrid' %}
+              {% include "_scenario_hybrid.html" %}
+            {% endif %}
+          </section>
+        {% endfor %}
+      </div>
+
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script>
+    (function () {
+      const tabs = Array.from(document.querySelectorAll('[data-scenario-tab]'));
+      const panels = Array.from(document.querySelectorAll('[data-scenario-panel]'));
+      const mainTitle = document.getElementById('step4-main-title');
+      const pageHeading = document.getElementById('scenario-page-heading');
+      const activeScenarioInput = document.getElementById('active_scenario');
+      const step4Form = document.getElementById('step4-form');
+      document.querySelectorAll('[data-autohide-flash="true"]').forEach((flash, index) => {
+        window.setTimeout(() => {
+          flash.classList.add('is-hiding');
+          window.setTimeout(() => flash.remove(), 280);
+        }, 3200 + (index * 120));
+      });
+      const pageTitles = {
+        paths: 'Step 3 - Migration Paths',
+        native: 'Migration to OCI Native',
+        ocvs: 'Migration to OCVS',
+        hybrid: 'Migration to Hybrid Platform',
+        price: 'Price Comparison',
+      };
+      const mainTitles = {
+        paths: 'Step 3 - Migration Paths',
+        native: 'Migration to OCI Native',
+        ocvs: 'Migration to OCVS',
+        hybrid: 'Migration to Hybrid Platform',
+        price: 'Price Comparison',
+      };
+      if (!panels.length) return;
+
+      function setScenarioTab(id, updateHash) {
+        const targetId = id || 'native';
+        if (activeScenarioInput) {
+          activeScenarioInput.value = targetId;
+        }
+        const mainTitleText = mainTitles[targetId] || 'Migration Paths';
+        if (mainTitle) {
+          mainTitle.textContent = mainTitleText;
+        }
+        if (pageHeading) {
+          pageHeading.textContent = pageTitles[targetId] || 'Migration Path Overview';
+        }
+        document.title = `VMware to OCI Migration Assessment - ${mainTitleText}`;
+        tabs.forEach((tab) => {
+          const isActive = tab.dataset.scenarioTab === targetId;
+          tab.classList.toggle('is-active', isActive);
+          tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+          tab.setAttribute('tabindex', isActive ? '0' : '-1');
+        });
+        panels.forEach((panel) => {
+          const isActive = panel.dataset.scenarioPanel === targetId;
+          panel.classList.toggle('is-active', isActive);
+          panel.hidden = !isActive;
+        });
+        document.dispatchEvent(new CustomEvent('migration-assessment:scenario-tab-changed', { detail: { id: targetId } }));
+        if (updateHash) {
+          window.history.replaceState(null, '', `#scenario-${targetId}`);
+        }
+      }
+
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => setScenarioTab(tab.dataset.scenarioTab || 'paths', true));
+      });
+
+      function getSyncedControls(settingName) {
+        return Array.from(document.querySelectorAll('[data-sync-control], input[name], select[name], textarea[name]')).filter((control) => {
+          return control.dataset.syncControl === settingName || control.name === settingName;
+        });
+      }
+
+      function syncSettingControl(source) {
+        const settingName = source?.dataset?.syncControl;
+        if (!settingName || typeof source.value === 'undefined') return;
+        getSyncedControls(settingName).forEach((control) => {
+          if (control !== source && typeof control.value !== 'undefined') {
+            control.value = source.value;
+          }
+        });
+      }
+
+      document.querySelectorAll('[data-sync-control]').forEach((control) => {
+        control.addEventListener('input', () => syncSettingControl(control));
+        control.addEventListener('change', () => syncSettingControl(control));
+      });
+
+      function syncActiveScenarioSettings() {
+        const activePanel = document.querySelector('[data-scenario-panel].is-active');
+        const sourceControls = activePanel
+          ? Array.from(activePanel.querySelectorAll('[data-sync-control]'))
+          : Array.from(document.querySelectorAll('[data-sync-control]'));
+        sourceControls.forEach(syncSettingControl);
+      }
+
+      if (step4Form && activeScenarioInput) {
+        step4Form.addEventListener('submit', (event) => {
+          syncActiveScenarioSettings();
+          const activeTab = document.querySelector('[data-scenario-tab].is-active');
+          const hashMatch = String(window.location.hash || '').match(/^#scenario-(paths|price|native|ocvs|hybrid)$/);
+          activeScenarioInput.value = hashMatch?.[1] || activeTab?.dataset.scenarioTab || activeScenarioInput.value || 'native';
+
+          const submitter = event.submitter;
+          if (submitter && submitter.name === 'action' && submitter.value === 'save') {
+            submitter.dataset.originalText = submitter.textContent || 'Save Settings';
+            submitter.textContent = 'Saving...';
+            window.setTimeout(() => {
+              submitter.disabled = true;
+            }, 0);
+          }
+        });
+      }
+
+      function activateFromHash() {
+        const retiredComparisonHash = '#scenario-' + String.fromCharCode(116, 99, 111);
+        if (String(window.location.hash || '') === retiredComparisonHash) {
+          setScenarioTab('price', false);
+          window.history.replaceState(null, '', '#scenario-price');
+          return;
+        }
+        const match = String(window.location.hash || '').match(/^#scenario-(paths|price|native|ocvs|hybrid)$/);
+        if (match) setScenarioTab(match[1], false);
+      }
+
+      activateFromHash();
+      window.addEventListener('hashchange', activateFromHash);
+    })();
+  </script>
+
+  <script>
+    (function () {
+      const pricingConfigEl = document.getElementById('pricing-config');
+      const pricingConfig = pricingConfigEl ? JSON.parse(pricingConfigEl.textContent || '{}') : {};
+      const pricingCurrency = pricingConfig.pricing_currency || 'USD';
+      const shapeRates = pricingConfig.shape_price_rates || {};
+      const blockStorageUnitPrice = Number(pricingConfig.block_storage_unit_price) || 0;
+      const blockPerfUnitPrice = Number(pricingConfig.block_perf_unit_price) || 0;
+      const windowsOsUnitPrice = Number(pricingConfig.windows_os_unit_price) || 0;
+      const configuredDiscountPct = Number(pricingConfig.iaas_discount_pct) || 0;
+
+      function currencySymbol(code) {
+        const map = {
+          EUR: '€',
+          USD: '$',
+          GBP: '£',
+          JPY: '¥',
+          CHF: 'CHF ',
+          AUD: 'A$',
+          CAD: 'C$',
+          SGD: 'S$',
+          SEK: 'kr ',
+          NOK: 'kr ',
+          DKK: 'kr '
+        };
+        return map[code] || `${code} `;
+      }
+
+      function toNumber(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function formatMoney(v) {
+        return `${currencySymbol(pricingCurrency)}${toNumber(v).toFixed(2)}`;
+      }
+
+      function formatNumberWhole(v) {
+        return Math.round(toNumber(v)).toLocaleString('en-US');
+      }
+
+      function formatMoneyWhole(v) {
+        return `${currencySymbol(pricingCurrency)}${formatNumberWhole(v)}`;
+      }
+
+      function getDiscountFactor() {
+        const raw = discountInput ? toNumber(discountInput.value) : configuredDiscountPct;
+        const pct = Math.max(0, Math.min(100, raw));
+        return 1 - (pct / 100);
+      }
+
+      function getBurstFactor(value) {
+        const burstVal = String(value || '100%');
+        return burstVal === '50%' ? 0.5 : (burstVal === '12.5%' ? 0.125 : 1);
+      }
+
+      function getNativeRowParts(row) {
+        if (row._nativeRowParts) return row._nativeRowParts;
+        row._nativeRowParts = {
+          shapeSel: row.querySelector('select[name="oci_shape"]'),
+          osLicenseSel: row.querySelector('select[name="vm_os_license"]'),
+          ocpuInput: row.querySelector('input[name="vm_ocpu"]'),
+          burstSel: row.querySelector('select[name="vm_burst"]'),
+          vpuSel: row.querySelector('select[name="vm_vpu"]'),
+          cpuRamTarget: row.querySelector('.cpu-ram-cost'),
+          osLicenseTarget: row.querySelector('.os-license-cost'),
+          storageTarget: row.querySelector('.storage-cost'),
+          totalTarget: row.querySelector('.total-cost'),
+          memGb: toNumber(row.dataset.memoryGb),
+          provGb: toNumber(row.dataset.provisionedGb)
+        };
+        return row._nativeRowParts;
+      }
+
+      function recalcRow(row) {
+        const parts = getNativeRowParts(row);
+        const shapeSel = parts.shapeSel;
+        const osLicenseSel = parts.osLicenseSel;
+        const ocpuInput = parts.ocpuInput;
+        const burstSel = parts.burstSel;
+        const vpuSel = parts.vpuSel;
+        const memGb = parts.memGb;
+        const provGb = parts.provGb;
+
+        if (!shapeSel || !ocpuInput || !vpuSel) return null;
+
+        const shapeName = shapeSel.value;
+        const rates = shapeRates[shapeName] || {};
+        const ocpuRate = toNumber(rates.ocpu_unit_price);
+        const memRate = toNumber(rates.memory_unit_price);
+        const ocpuVal = Math.max(1, Math.floor(toNumber(ocpuInput.value)));
+        const burstVal = burstSel ? String(burstSel.value || '100%') : '100%';
+        const burstFactor = getBurstFactor(burstVal);
+        const vpuVal = toNumber(vpuSel.value);
+
+        const cpuCost = (ocpuVal * ocpuRate) * 730 * burstFactor;
+        const ramCost = (memGb * memRate) * 730;
+        const discountFactor = getDiscountFactor();
+        const cpuCostDiscounted = cpuCost * discountFactor;
+        const ramCostDiscounted = ramCost * discountFactor;
+        const cpuRamCost = cpuCostDiscounted + ramCostDiscounted;
+        const osLicenseCost = (osLicenseSel && osLicenseSel.value === 'Lic Include') ? (windowsOsUnitPrice * ocpuVal * 730 * burstFactor) : 0;
+        const storageCapacityCost = provGb * blockStorageUnitPrice;
+        const storageVpuCost = provGb * vpuVal * blockPerfUnitPrice;
+        const storageCapacityCostDiscounted = storageCapacityCost * discountFactor;
+        const storageVpuCostDiscounted = storageVpuCost * discountFactor;
+        const storageCost = storageCapacityCostDiscounted + storageVpuCostDiscounted;
+        const totalCost = cpuRamCost + storageCost + osLicenseCost;
+
+        const cpuRamTarget = parts.cpuRamTarget;
+        const osLicenseTarget = parts.osLicenseTarget;
+        const storageTarget = parts.storageTarget;
+        const totalTarget = parts.totalTarget;
+        if (cpuRamTarget) cpuRamTarget.textContent = formatMoney(cpuRamCost);
+        if (cpuRamTarget) {
+          cpuRamTarget.title = `CPU cost: ${formatMoney(cpuCostDiscounted)}\nMemory cost: ${formatMoney(ramCostDiscounted)}`;
+        }
+        if (osLicenseTarget) osLicenseTarget.textContent = formatMoney(osLicenseCost);
+        if (storageTarget) storageTarget.textContent = formatMoney(storageCost);
+        if (storageTarget) {
+          storageTarget.title = `Storage cost: ${formatMoney(storageCapacityCostDiscounted)}\nVPU cost: ${formatMoney(storageVpuCostDiscounted)}`;
+        }
+        if (totalTarget) totalTarget.textContent = formatMoney(totalCost);
+
+        return {
+          cpuCost: cpuCostDiscounted,
+          ramCost: ramCostDiscounted,
+          storageCapacityCost: storageCapacityCostDiscounted,
+          storageVpuCost: storageVpuCostDiscounted,
+          storageCost,
+          osLicenseCost,
+          totalCost,
+          licenseIncluded: Boolean(osLicenseSel && osLicenseSel.value === 'Lic Include'),
+          memoryGb: memGb,
+          provisionedGb: provGb,
+          vpus: vpuVal
+        };
+      }
+
+      function emptyNativeTotals() {
+        return {
+          cpuTotal: 0,
+          ramTotal: 0,
+          storageCapacityTotal: 0,
+          storageVpuTotal: 0,
+          storageTotal: 0,
+          licenseCostTotal: 0,
+          grandTotal: 0,
+          licenseIncludedCount: 0,
+          totalMemoryGb: 0,
+          totalProvisionedGb: 0,
+          totalVpus: 0
+        };
+      }
+
+      function addNativeRowTotals(totals, rowVals, direction) {
+        if (!rowVals) return;
+        const sign = direction || 1;
+        totals.cpuTotal += rowVals.cpuCost * sign;
+        totals.ramTotal += rowVals.ramCost * sign;
+        totals.storageCapacityTotal += rowVals.storageCapacityCost * sign;
+        totals.storageVpuTotal += rowVals.storageVpuCost * sign;
+        totals.storageTotal += rowVals.storageCost * sign;
+        totals.licenseCostTotal += rowVals.osLicenseCost * sign;
+        totals.grandTotal += rowVals.totalCost * sign;
+        totals.licenseIncludedCount += (rowVals.licenseIncluded ? 1 : 0) * sign;
+        totals.totalMemoryGb += rowVals.memoryGb * sign;
+        totals.totalProvisionedGb += rowVals.provisionedGb * sign;
+        totals.totalVpus += rowVals.vpus * sign;
+      }
+
+      let nativeTotals = {
+        cpuTotal: toNumber({{ (overall.total_cpu_monthly_cost or 0)|tojson }}),
+        ramTotal: toNumber({{ (overall.total_ram_monthly_cost or 0)|tojson }}),
+        storageCapacityTotal: toNumber({{ (overall.total_storage_capacity_monthly_cost or 0)|tojson }}),
+        storageVpuTotal: toNumber({{ (overall.total_storage_performance_monthly_cost or 0)|tojson }}),
+        storageTotal: toNumber({{ (overall.total_storage_monthly_cost or 0)|tojson }}),
+        licenseCostTotal: toNumber({{ (overall.total_os_license_monthly_cost or 0)|tojson }}),
+        grandTotal: toNumber({{ (overall.total_monthly_cost or 0)|tojson }}),
+        licenseIncludedCount: toNumber({{ (overall.total_license_included_vms or 0)|tojson }}),
+        totalMemoryGb: toNumber({{ (overall.total_memory_gb or 0)|tojson }}),
+        totalProvisionedGb: toNumber({{ (overall.total_provisioned_gb or 0)|tojson }}),
+        totalVpus: toNumber({{ (overall.total_vpus or 0)|tojson }})
+      };
+
+      function renderNativeSummary(totals) {
+        const cpuTotal = totals.cpuTotal;
+        const ramTotal = totals.ramTotal;
+        const storageCapacityTotal = totals.storageCapacityTotal;
+        const storageVpuTotal = totals.storageVpuTotal;
+        const licenseCostTotal = totals.licenseCostTotal;
+        const grandTotal = totals.grandTotal;
+        const licenseIncludedCount = totals.licenseIncludedCount;
+        const totalMemoryGb = totals.totalMemoryGb;
+        const totalProvisionedGb = totals.totalProvisionedGb;
+        const totalVpus = totals.totalVpus;
+        const qtyLicense = document.getElementById('sum-qty-license');
+        const qtyRam = document.getElementById('sum-qty-ram');
+        const qtyStorageGb = document.getElementById('sum-qty-storage-gb');
+        const qtyVpu = document.getElementById('sum-qty-vpu');
+        const sumTotal = document.getElementById('sum-total-cost');
+        const sumCpu = document.getElementById('sum-cpu-cost');
+        const sumRam = document.getElementById('sum-ram-cost');
+        const sumStorageCapacity = document.getElementById('sum-storage-capacity-cost');
+        const sumStorageVpu = document.getElementById('sum-storage-vpu-cost');
+        const sumLicense = document.getElementById('sum-license-cost');
+        const sumTotalYearly = document.getElementById('sum-total-cost-yearly');
+        const sumCpuYearly = document.getElementById('sum-cpu-cost-yearly');
+        const sumRamYearly = document.getElementById('sum-ram-cost-yearly');
+        const sumStorageCapacityYearly = document.getElementById('sum-storage-capacity-cost-yearly');
+        const sumStorageVpuYearly = document.getElementById('sum-storage-vpu-cost-yearly');
+        const sumLicenseYearly = document.getElementById('sum-license-cost-yearly');
+        const costSplitTotal = document.getElementById('cost-split-total');
+        const costSplitCpuValue = document.getElementById('cost-split-cpu-value');
+        const costSplitCpuPct = document.getElementById('cost-split-cpu-pct');
+        const costSplitRamValue = document.getElementById('cost-split-ram-value');
+        const costSplitRamPct = document.getElementById('cost-split-ram-pct');
+        const costSplitStorageValue = document.getElementById('cost-split-storage-value');
+        const costSplitStoragePct = document.getElementById('cost-split-storage-pct');
+        const costSplitVpuValue = document.getElementById('cost-split-vpu-value');
+        const costSplitVpuPct = document.getElementById('cost-split-vpu-pct');
+        const costSplitLicenseValue = document.getElementById('cost-split-license-value');
+        const costSplitLicensePct = document.getElementById('cost-split-license-pct');
+        const costDriverSegments = [
+          { el: document.getElementById('cost-driver-cpu'), label: 'CPU', value: cpuTotal, pct: 0 },
+          { el: document.getElementById('cost-driver-ram'), label: 'RAM', value: ramTotal, pct: 0 },
+          { el: document.getElementById('cost-driver-storage'), label: 'Storage', value: storageCapacityTotal, pct: 0 },
+          { el: document.getElementById('cost-driver-vpu'), label: 'VPUs', value: storageVpuTotal, pct: 0 },
+          { el: document.getElementById('cost-driver-license'), label: 'License', value: licenseCostTotal, pct: 0 },
+        ];
+
+        if (qtyLicense) qtyLicense.textContent = formatNumberWhole(licenseIncludedCount);
+        if (qtyRam) qtyRam.textContent = formatNumberWhole(totalMemoryGb);
+        if (qtyStorageGb) qtyStorageGb.textContent = formatNumberWhole(totalProvisionedGb);
+        if (qtyVpu) qtyVpu.textContent = formatNumberWhole(totalVpus);
+        if (sumTotal) sumTotal.innerHTML = `<strong>${formatMoneyWhole(grandTotal)}</strong>`;
+        if (sumCpu) sumCpu.textContent = formatMoneyWhole(cpuTotal);
+        if (sumRam) sumRam.textContent = formatMoneyWhole(ramTotal);
+        if (sumStorageCapacity) sumStorageCapacity.textContent = formatMoneyWhole(storageCapacityTotal);
+        if (sumStorageVpu) sumStorageVpu.textContent = formatMoneyWhole(storageVpuTotal);
+        if (sumLicense) sumLicense.textContent = formatMoneyWhole(licenseCostTotal);
+        if (sumTotalYearly) sumTotalYearly.innerHTML = `<strong>${formatMoneyWhole(grandTotal * 12)}</strong>`;
+        if (sumCpuYearly) sumCpuYearly.textContent = formatMoneyWhole(cpuTotal * 12);
+        if (sumRamYearly) sumRamYearly.textContent = formatMoneyWhole(ramTotal * 12);
+        if (sumStorageCapacityYearly) sumStorageCapacityYearly.textContent = formatMoneyWhole(storageCapacityTotal * 12);
+        if (sumStorageVpuYearly) sumStorageVpuYearly.textContent = formatMoneyWhole(storageVpuTotal * 12);
+        if (sumLicenseYearly) sumLicenseYearly.textContent = formatMoneyWhole(licenseCostTotal * 12);
+
+        const total = cpuTotal + ramTotal + storageCapacityTotal + storageVpuTotal + licenseCostTotal;
+        const cpuPct = total > 0 ? (cpuTotal / total) * 100 : 0;
+        const ramPct = total > 0 ? (ramTotal / total) * 100 : 0;
+        const storageCapacityPct = total > 0 ? (storageCapacityTotal / total) * 100 : 0;
+        const storageVpuPct = total > 0 ? (storageVpuTotal / total) * 100 : 0;
+        const licensePct = total > 0 ? (licenseCostTotal / total) * 100 : 0;
+
+        if (costSplitTotal) costSplitTotal.textContent = formatMoneyWhole(grandTotal);
+        if (costSplitCpuValue) costSplitCpuValue.textContent = formatMoneyWhole(cpuTotal);
+        if (costSplitCpuPct) costSplitCpuPct.textContent = `${Math.round(cpuPct)}%`;
+        if (costSplitRamValue) costSplitRamValue.textContent = formatMoneyWhole(ramTotal);
+        if (costSplitRamPct) costSplitRamPct.textContent = `${Math.round(ramPct)}%`;
+        if (costSplitStorageValue) costSplitStorageValue.textContent = formatMoneyWhole(storageCapacityTotal);
+        if (costSplitStoragePct) costSplitStoragePct.textContent = `${Math.round(storageCapacityPct)}%`;
+        if (costSplitVpuValue) costSplitVpuValue.textContent = formatMoneyWhole(storageVpuTotal);
+        if (costSplitVpuPct) costSplitVpuPct.textContent = `${Math.round(storageVpuPct)}%`;
+        if (costSplitLicenseValue) costSplitLicenseValue.textContent = formatMoneyWhole(licenseCostTotal);
+        if (costSplitLicensePct) costSplitLicensePct.textContent = `${Math.round(licensePct)}%`;
+
+        costDriverSegments[0].pct = cpuPct;
+        costDriverSegments[1].pct = ramPct;
+        costDriverSegments[2].pct = storageCapacityPct;
+        costDriverSegments[3].pct = storageVpuPct;
+        costDriverSegments[4].pct = licensePct;
+        costDriverSegments.forEach((segment) => {
+          if (!segment.el) return;
+          const visible = segment.value > 0 && segment.pct > 0;
+          segment.el.hidden = !visible;
+          segment.el.style.width = visible ? `${segment.pct}%` : '0%';
+          segment.el.title = `${segment.label}: ${formatMoney(segment.value)} (${segment.pct.toFixed(1)}%)`;
+          const label = segment.el.querySelector('.cost-driver-label');
+          if (label) {
+            label.textContent = segment.pct >= 20
+              ? `${segment.label} ${Math.round(segment.pct)}%`
+              : segment.pct >= 10
+                ? `${Math.round(segment.pct)}%`
+                : '';
+          }
+        });
+      }
+
+      function recalcSummary() {
+        nativeTotals = emptyNativeTotals();
+        getNativeRows().forEach((row) => {
+          const rowVals = recalcRow(row);
+          if (!rowVals) return;
+          row._nativeCostValues = rowVals;
+          addNativeRowTotals(nativeTotals, rowVals, 1);
+        });
+        renderNativeSummary(nativeTotals);
+      }
+
+      function nativeRowValuesFromInitialData(row) {
+        const licenseIncluded = String(row.dataset.initialLicenseIncluded || '') === '1';
+        return {
+          cpuCost: toNumber(row.dataset.initialCpuCost),
+          ramCost: toNumber(row.dataset.initialRamCost),
+          storageCapacityCost: toNumber(row.dataset.initialStorageCapacityCost),
+          storageVpuCost: toNumber(row.dataset.initialStorageVpuCost),
+          storageCost: toNumber(row.dataset.initialStorageCost),
+          osLicenseCost: toNumber(row.dataset.initialLicenseCost),
+          totalCost: toNumber(row.dataset.initialTotalCost),
+          licenseIncluded,
+          memoryGb: toNumber(row.dataset.memoryGb),
+          provisionedGb: toNumber(row.dataset.provisionedGb),
+          vpus: toNumber(row.dataset.initialVpu)
+        };
+      }
+
+      function recalcChangedRow(row) {
+        const previous = row._nativeCostValues || nativeRowValuesFromInitialData(row);
+        const next = recalcRow(row);
+        if (!next) return;
+        addNativeRowTotals(nativeTotals, previous, -1);
+        addNativeRowTotals(nativeTotals, next, 1);
+        row._nativeCostValues = next;
+        renderNativeSummary(nativeTotals);
+      }
+
+      const bulkSelect = document.getElementById('bulk_oci_shape');
+      const bulkOsLicenseSelect = document.getElementById('bulk_os_license');
+      const bulkBurstSelect = document.getElementById('bulk_burst');
+      const bulkVpuSelect = document.getElementById('bulk_vpu');
+      const bulkApplyShapeInput = document.getElementById('bulk_apply_oci_shape');
+      const bulkApplyBurstInput = document.getElementById('bulk_apply_burst');
+      const bulkApplyVpuInput = document.getElementById('bulk_apply_vpu');
+      const bulkApplyOsLicenseInput = document.getElementById('bulk_apply_os_license');
+      const shapeStrategyEnabledInput = document.getElementById('native_shape_strategy_enabled');
+      const shapeStrategyFieldContainer = document.getElementById('native-shape-strategy-fields');
+      const bulkPendingNote = document.getElementById('native-bulk-pending');
+      const discountInput = document.getElementById('iaas_discount_pct');
+      const openShapeStrategyBtn = document.getElementById('open-shape-strategy');
+      const shapeStrategyModal = document.getElementById('shape-strategy-modal');
+      const shapeStrategyGrid = document.getElementById('shape-strategy-grid');
+      const applyShapeStrategyBtn = document.getElementById('apply-shape-strategy');
+      const cancelShapeStrategyBtn = document.getElementById('cancel-shape-strategy');
+      const closeShapeStrategyBtn = document.getElementById('close-shape-strategy');
+      const vmTable = document.querySelector('table.vm-table');
+      const sortableHeaders = vmTable ? Array.from(vmTable.querySelectorAll('th.sortable[data-sort-index]')) : [];
+      const numericSortCols = new Set([3, 4, 6, 7, 8, 10, 11, 12, 13]);
+      let rows = [];
+      let nativeEditorInitialized = false;
+
+      function getNativeRows() {
+        if (!rows.length) {
+          rows = Array.from(document.querySelectorAll('tr.vm-row'));
+        }
+        return rows;
+      }
+
+      function updateBulkPendingNote() {
+        if (!bulkPendingNote) return;
+        const pending = [
+          { label: 'Default shape strategy', value: shapeStrategyEnabledInput && shapeStrategyEnabledInput.value === '1' ? 'per OS' : '' },
+          { label: 'OCI target', value: bulkApplyShapeInput ? bulkApplyShapeInput.value : '' },
+          { label: 'Burst', value: bulkApplyBurstInput ? bulkApplyBurstInput.value : '' },
+          { label: 'VPU', value: bulkApplyVpuInput ? bulkApplyVpuInput.value : '' },
+          { label: 'Windows license', value: bulkApplyOsLicenseInput ? bulkApplyOsLicenseInput.value : '' },
+        ].filter((item) => item.value);
+
+        if (!pending.length) {
+          bulkPendingNote.hidden = true;
+          bulkPendingNote.textContent = '';
+          return;
+        }
+
+        const summary = pending.map((item) => `${item.label}: ${item.value}`).join(' | ');
+        bulkPendingNote.hidden = false;
+        bulkPendingNote.innerHTML = `<strong>Pending change:</strong> ${summary}. Click Save Settings to apply.`;
+      }
+
+      function setPendingBulkValue(input, value) {
+        if (!input || !value) return;
+        input.value = value;
+        updateBulkPendingNote();
+      }
+
+      function clearPendingBulkValue(input, select) {
+        if (!input || !input.value) return;
+        input.value = '';
+        if (select) select.value = '';
+        updateBulkPendingNote();
+      }
+
+      function appendHiddenField(name, value) {
+        if (!shapeStrategyFieldContainer) return;
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        shapeStrategyFieldContainer.appendChild(input);
+      }
+
+      function clearPendingShapeStrategy() {
+        if (shapeStrategyEnabledInput) shapeStrategyEnabledInput.value = '';
+        if (shapeStrategyFieldContainer) shapeStrategyFieldContainer.innerHTML = '';
+        updateBulkPendingNote();
+      }
+
+      function setPendingShapeStrategy() {
+        if (!shapeStrategyGrid || !shapeStrategyEnabledInput || !shapeStrategyFieldContainer) return;
+        const byOs = new Map();
+        shapeStrategyGrid.querySelectorAll('select[data-os-name][data-role]').forEach((sel) => {
+          const osName = sel.dataset.osName || '';
+          const role = sel.dataset.role || '';
+          if (!osName) return;
+          if (!byOs.has(osName)) byOs.set(osName, {});
+          byOs.get(osName)[role] = sel.value || '';
+        });
+
+        shapeStrategyFieldContainer.innerHTML = '';
+        byOs.forEach((values, osName) => {
+          appendHiddenField('native_strategy_os', osName);
+          appendHiddenField('native_strategy_shape', values.shape || '');
+          appendHiddenField('native_strategy_burst', values.burst || '100%');
+        });
+        shapeStrategyEnabledInput.value = byOs.size ? '1' : '';
+        updateBulkPendingNote();
+      }
+
+      function initNativeEditor() {
+        if (nativeEditorInitialized) return;
+        nativeEditorInitialized = true;
+        renderNativeSummary(nativeTotals);
+
+        if (vmTable) {
+          vmTable.addEventListener('input', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement) || target.name !== 'vm_ocpu') return;
+            const row = target.closest('tr.vm-row');
+            if (row) recalcChangedRow(row);
+          });
+
+          vmTable.addEventListener('change', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+            const row = target.closest('tr.vm-row');
+            if (!row) return;
+
+            if (target.name === 'oci_shape') {
+              clearPendingBulkValue(bulkApplyShapeInput, bulkSelect);
+              clearPendingShapeStrategy();
+              recalcChangedRow(row);
+            } else if (target.name === 'vm_os_license') {
+              clearPendingBulkValue(bulkApplyOsLicenseInput, bulkOsLicenseSelect);
+              recalcChangedRow(row);
+            } else if (target.name === 'vm_ocpu') {
+              const fixed = Math.max(1, Math.floor(toNumber(target.value)));
+              target.value = String(fixed);
+              recalcChangedRow(row);
+            } else if (target.name === 'vm_burst') {
+              clearPendingBulkValue(bulkApplyBurstInput, bulkBurstSelect);
+              clearPendingShapeStrategy();
+              recalcChangedRow(row);
+            } else if (target.name === 'vm_vpu') {
+              clearPendingBulkValue(bulkApplyVpuInput, bulkVpuSelect);
+              recalcChangedRow(row);
+            }
+          });
+        }
+
+        if (bulkSelect) {
+          bulkSelect.addEventListener('change', function () {
+            const value = this.value;
+            if (!value) return;
+            clearPendingShapeStrategy();
+            setPendingBulkValue(bulkApplyShapeInput, value);
+          });
+        }
+
+        if (bulkOsLicenseSelect) {
+          bulkOsLicenseSelect.addEventListener('change', function () {
+            const value = this.value;
+            if (!value) return;
+            setPendingBulkValue(bulkApplyOsLicenseInput, value);
+          });
+        }
+
+        if (bulkBurstSelect) {
+          bulkBurstSelect.addEventListener('change', function () {
+            const value = this.value;
+            if (!value) return;
+            clearPendingShapeStrategy();
+            setPendingBulkValue(bulkApplyBurstInput, value);
+          });
+        }
+
+        if (bulkVpuSelect) {
+          bulkVpuSelect.addEventListener('change', function () {
+            const value = this.value;
+            if (value === '') return;
+            setPendingBulkValue(bulkApplyVpuInput, value);
+          });
+        }
+
+        if (discountInput) {
+          discountInput.addEventListener('change', function () {
+            const val = Math.max(0, Math.min(100, toNumber(discountInput.value)));
+            discountInput.value = val.toFixed(2);
+          });
+        }
+      }
+
+      function closeShapeStrategyModal() {
+        if (shapeStrategyModal) {
+          shapeStrategyModal.style.display = 'none';
+          shapeStrategyModal.setAttribute('aria-hidden', 'true');
+        }
+      }
+
+      function openShapeStrategyModal() {
+        if (!shapeStrategyModal || !shapeStrategyGrid) return;
+        shapeStrategyModal.style.display = 'flex';
+        shapeStrategyModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function applyShapeStrategy() {
+        if (!shapeStrategyGrid) return;
+        clearPendingBulkValue(bulkApplyShapeInput, bulkSelect);
+        clearPendingBulkValue(bulkApplyBurstInput, bulkBurstSelect);
+        setPendingShapeStrategy();
+        closeShapeStrategyModal();
+      }
+
+      if (openShapeStrategyBtn) openShapeStrategyBtn.addEventListener('click', openShapeStrategyModal);
+      if (applyShapeStrategyBtn) applyShapeStrategyBtn.addEventListener('click', applyShapeStrategy);
+      if (cancelShapeStrategyBtn) cancelShapeStrategyBtn.addEventListener('click', closeShapeStrategyModal);
+      if (closeShapeStrategyBtn) closeShapeStrategyBtn.addEventListener('click', closeShapeStrategyModal);
+      if (shapeStrategyModal) {
+        shapeStrategyModal.addEventListener('click', (e) => {
+          if (e.target === shapeStrategyModal) closeShapeStrategyModal();
+        });
+      }
+
+      let activeSortIndex = null;
+      let activeSortDir = 'asc';
+
+      function parseSortableValue(raw, isNumeric) {
+        if (!isNumeric) return (raw || '').toLowerCase();
+        const cleaned = String(raw || '').replace(/[^0-9.-]/g, '');
+        const n = Number(cleaned);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function updateSortHeaderState() {
+        sortableHeaders.forEach((th) => {
+          th.classList.remove('sorted-asc', 'sorted-desc');
+          const idx = Number(th.dataset.sortIndex || '-1');
+          if (idx === activeSortIndex) {
+            th.classList.add(activeSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+          }
+        });
+      }
+
+      function sortVmRowsByColumn(colIdx, direction) {
+        if (!vmTable) return;
+        const tbody = vmTable.querySelector('tbody');
+        if (!tbody) return;
+
+        const vmRows = Array.from(tbody.querySelectorAll('tr.vm-row'));
+        if (!vmRows.length) return;
+
+        const isNumeric = numericSortCols.has(colIdx);
+        vmRows.sort((rowA, rowB) => {
+          const cellsA = rowA.querySelectorAll('td');
+          const cellsB = rowB.querySelectorAll('td');
+          const rawA = cellsA[colIdx] ? cellsA[colIdx].textContent : '';
+          const rawB = cellsB[colIdx] ? cellsB[colIdx].textContent : '';
+          const a = parseSortableValue(rawA, isNumeric);
+          const b = parseSortableValue(rawB, isNumeric);
+
+          if (a < b) return direction === 'asc' ? -1 : 1;
+          if (a > b) return direction === 'asc' ? 1 : -1;
+          return 0;
+        });
+
+        vmRows.forEach((row) => tbody.appendChild(row));
+      }
+
+      sortableHeaders.forEach((th) => {
+        th.addEventListener('click', (event) => {
+          if (event.target && event.target.closest && event.target.closest('select, input, button, label, a')) {
+            return;
+          }
+          const colIdx = Number(th.dataset.sortIndex || '-1');
+          if (colIdx < 0) return;
+
+          if (activeSortIndex === colIdx) {
+            activeSortDir = activeSortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            activeSortIndex = colIdx;
+            activeSortDir = 'asc';
+          }
+
+          sortVmRowsByColumn(activeSortIndex, activeSortDir);
+          updateSortHeaderState();
+        });
+      });
+
+      function isNativePanelActive() {
+        return String(window.location.hash || '') === '#scenario-native'
+          || Boolean(document.getElementById('scenario-panel-native')?.classList.contains('is-active'));
+      }
+
+      document.addEventListener('migration-assessment:scenario-tab-changed', (event) => {
+        if (event.detail && event.detail.id === 'native') {
+          initNativeEditor();
+        }
+      });
+
+      if (isNativePanelActive()) {
+        initNativeEditor();
+      }
+    })();
+  </script>
+  {% if active_scenario != 'price' %}
+    <script src="{{ url_for('static', filename='js/scenario-editor.js') }}" defer></script>
+  {% endif %}
+{% endblock %}
