@@ -499,11 +499,23 @@ def business_scenario_ui() -> dict[str, Any]:
 def resolve_presentation_template(
     business_scenario: dict[str, Any],
     assessor_recommendation: Any,
+    active_scenario: Any = "",
 ) -> tuple[Path, str]:
     """Return the local template and customer-facing scenario name for the export."""
     scenario_id = str(business_scenario.get("id") or "")
     recommendation = str(assessor_recommendation or "").strip().lower()
-    if scenario_id == "compute" and recommendation in {"ocvs", "hybrid"}:
+    selected_scenario = str(active_scenario or "").strip().lower()
+    if scenario_id in {"capacity", "dr"}:
+        template_id = scenario_id
+        scenario_name = str(business_scenario.get("name") or "Assessment")
+    elif selected_scenario in {"native", "ocvs", "hybrid"}:
+        template_id = "compute" if selected_scenario == "native" else selected_scenario
+        scenario_name = {
+            "native": "OCI Compute Migration",
+            "ocvs": "Oracle Cloud VMware Solution",
+            "hybrid": "OCI Hybrid",
+        }[selected_scenario]
+    elif recommendation in {"ocvs", "hybrid"}:
         template_id = recommendation
         scenario_name = "OCI Hybrid" if recommendation == "hybrid" else "Oracle Cloud VMware Solution"
     else:
@@ -6914,6 +6926,100 @@ def _presentation_tb_number(value: Any) -> str:
         return "0.0"
 
 
+def _presentation_storage_type(shape: Any) -> str:
+    """Return the customer-facing storage architecture for an OCVS shape."""
+    normalized = str(shape or "").strip().lower()
+    if normalized.startswith(("bm.standard", "bm.optimized")):
+        return "OCI Block Volume (Block Storage)"
+    if normalized.startswith("bm.denseio"):
+        return "vSAN"
+    return "Not provided"
+
+
+def _presentation_cpu_contention_ratio(policy: dict[str, Any]) -> str:
+    """Format the Step 3 vCPU-per-OCPU input as the slide's contention ratio."""
+    try:
+        return f"{float(policy.get('vcpu_per_ocpu', 0) or 0):g}:1"
+    except (AttributeError, TypeError, ValueError):
+        return "Not provided"
+
+
+def _presentation_decimal(value: Any) -> float:
+    """Return a safe numeric value for the presentation-only summaries."""
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _presentation_compute_shape_name(shape: Any) -> str:
+    """Use official OCI names in the customer-facing Compute mix table."""
+    normalized = str(shape or "").strip().upper()
+    aliases = {
+        "S3": "VM.Standard3.Flex",
+        "E4": "VM.Standard.E4.Flex",
+        "E5": "VM.Standard.E5.Flex",
+        "E6": "VM.Standard.E6.Flex",
+    }
+    return aliases.get(normalized, str(shape or "").strip() or "Unassigned")
+
+
+def _presentation_native_mix_rows(vm_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, float]]:
+    """Summarize the exact Native-placement subset for the final PPT slide."""
+    shape_groups: dict[str, dict[str, Any]] = {}
+    vpu_groups: dict[float, dict[str, Any]] = {}
+    totals = {"vms": 0.0, "ocpus": 0.0, "ram_gb": 0.0, "vpus": 0.0, "storage_gb": 0.0}
+
+    for row in vm_rows:
+        shape = _presentation_compute_shape_name(row.get("oci_shape"))
+        ocpus = _presentation_decimal(row.get("ocpu"))
+        ram_gb = _presentation_decimal(row.get("memory_gb"))
+        storage_gb = _presentation_decimal(row.get("provisioned_gb"))
+        vpu = _presentation_decimal(row.get("vpu"))
+        totals["vms"] += 1
+        totals["ocpus"] += ocpus
+        totals["ram_gb"] += ram_gb
+        totals["vpus"] += vpu
+        totals["storage_gb"] += storage_gb
+
+        shape_group = shape_groups.setdefault(shape, {"shape": shape, "vms": 0.0, "ocpus": 0.0, "ram_gb": 0.0})
+        shape_group["vms"] += 1
+        shape_group["ocpus"] += ocpus
+        shape_group["ram_gb"] += ram_gb
+
+        vpu_group = vpu_groups.setdefault(vpu, {"vpu": vpu, "vms": 0.0, "total_vpu": 0.0, "storage_gb": 0.0})
+        vpu_group["vms"] += 1
+        vpu_group["total_vpu"] += vpu
+        vpu_group["storage_gb"] += storage_gb
+
+    shapes = sorted(shape_groups.values(), key=lambda item: (-item["vms"], item["shape"]))
+    vpus = sorted(vpu_groups.values(), key=lambda item: (-item["storage_gb"], item["vpu"]))
+    return shapes, vpus, totals
+
+
+def _presentation_limit_mix_rows(rows: list[dict[str, Any]], *, kind: str) -> list[dict[str, Any]]:
+    """Fit a dynamic distribution into the template's three visible rows."""
+    if len(rows) <= 3:
+        return rows
+    visible = rows[:2]
+    remaining = rows[2:]
+    if kind == "shape":
+        visible.append({
+            "shape": "Other OCI Compute shapes",
+            "vms": sum(row["vms"] for row in remaining),
+            "ocpus": sum(row["ocpus"] for row in remaining),
+            "ram_gb": sum(row["ram_gb"] for row in remaining),
+        })
+    else:
+        visible.append({
+            "vpu": "Other VPU values",
+            "vms": sum(row["vms"] for row in remaining),
+            "total_vpu": sum(row["total_vpu"] for row in remaining),
+            "storage_gb": sum(row["storage_gb"] for row in remaining),
+        })
+    return visible
+
+
 def _replace_presentation_named_text(xml_text: str, replacements: dict[str, str]) -> str:
     normalized = {str(key).lower(): str(value) for key, value in replacements.items()}
 
@@ -6942,65 +7048,122 @@ def _replace_presentation_named_text(xml_text: str, replacements: dict[str, str]
 def build_customer_presentation_pptx(
     *, template_path: Path, output_path: Path, customer_name: str, business_scenario: dict[str, Any],
     analysis: dict[str, Any], ocvs_price: dict[str, Any], generated_at: str,
+    native_vm_rows: list[dict[str, Any]] | None = None,
 ) -> None:
     """Fill the imported editable OCVS template with VMware2OCI assessment results."""
     workload = analysis.get("workload_summary", {})
     selected_ocvs = ocvs_price.get("selected", {}) if isinstance(ocvs_price, dict) else {}
+    hybrid_ocvs = analysis.get("hybrid_ocvs_price", {})
+    selected_hybrid_ocvs = hybrid_ocvs.get("selected", {}) if isinstance(hybrid_ocvs, dict) else {}
+    overall_native = analysis.get("overall", {})
+    hybrid_native = analysis.get("supported_native_summary", {})
+    scenario_id = str(business_scenario.get("id") or "")
+    is_hybrid = scenario_id == "hybrid"
+    selected_summary = selected_hybrid_ocvs if is_hybrid else selected_ocvs
+    policy_source = hybrid_ocvs if is_hybrid else ocvs_price
+    policy = policy_source.get("policy", {}) if isinstance(policy_source, dict) else {}
+    ocvs_totals = policy_source.get("totals", {}) if isinstance(policy_source, dict) else {}
     date_value = datetime.fromisoformat(generated_at).strftime("%b %d, %Y")
     storage_gb = workload.get("total_storage_gb", 0)
-    host_shape = str(selected_ocvs.get("shape") or "Not provided")
-    host_count = _presentation_number(selected_ocvs.get("host_count"))
-    storage = _presentation_tb(float(selected_ocvs.get("total_raw_storage_tb", 0) or 0) * 1024)
-    uses_numeric_storage_placeholders = str(business_scenario.get("id") or "") in {
-        "ocvs",
-        "dr",
-        "capacity",
-    }
-    workload_storage = (
-        _presentation_tb_number(storage_gb)
-        if uses_numeric_storage_placeholders
-        else _presentation_tb(storage_gb)
+    workload_storage = _presentation_tb_number(storage_gb)
+    host_shape = str(selected_summary.get("shape") or "Not provided")
+    host_count = _presentation_number(selected_summary.get("host_count"))
+    infrastructure_storage = _presentation_tb_number(
+        ocvs_totals.get("storage_gb", storage_gb)
+        if isinstance(ocvs_totals, dict)
+        else storage_gb
     )
-    infrastructure_storage = (
-        # The assessment models the selected workload capacity in GB.  Dense
-        # profiles expose per-host NVMe data, not total_raw_storage_tb, so
-        # that obsolete key would otherwise turn the slide into 0.0 TB.
-        workload_storage
-        if uses_numeric_storage_placeholders
-        else storage
+    storage_type = _presentation_storage_type(host_shape)
+    native_summary = hybrid_native if is_hybrid else overall_native
+    # Hybrid must contain only the VMs assigned to OCI Native.  For a Compute
+    # presentation the full selected Native workload is the source of truth.
+    native_rows = (
+        list(analysis.get("supported_native_rows", []))
+        if is_hybrid
+        else list(native_vm_rows or [])
     )
+    shape_mix, vpu_mix, native_totals = _presentation_native_mix_rows(native_rows)
+    visible_shape_mix = _presentation_limit_mix_rows(shape_mix, kind="shape")
+    visible_vpu_mix = _presentation_limit_mix_rows(vpu_mix, kind="vpu")
+
+    def mix_value(rows: list[dict[str, Any]], index: int, key: str) -> Any:
+        return rows[index].get(key, "") if index < len(rows) else ""
+
+    def mix_number(rows: list[dict[str, Any]], index: int, key: str) -> str:
+        value = mix_value(rows, index, key)
+        return _presentation_number(value) if value != "" else ""
+
+    def mix_tb(rows: list[dict[str, Any]], index: int, key: str) -> str:
+        value = mix_value(rows, index, key)
+        return _presentation_tb(value) if value != "" else ""
+
     replacements = {
         "editable-customer-value": customer_name or "Not provided",
         "editable-date-value": date_value,
         "editable-prepared-by-value": f"VMware to OCI Assessment — {business_scenario.get('name') or 'Assessment'}",
-        "editable-top-vms": _presentation_number(workload.get("vm_count")),
-        "editable-top-vms-powered-on": _presentation_number(workload.get("powered_on_count")),
-        "editable-top-vms-powered-off": _presentation_number(workload.get("powered_off_count")),
-        "editable-top-vcpus": _presentation_number(workload.get("total_vcpus")),
-        "editable-top-vram": _presentation_number(workload.get("total_memory_gb")),
-        "editable-top-storage": workload_storage,
+        "editable-current-datacenter": f"Datacenter 1 – {customer_name or 'Not provided'}",
+        "editable-current-vms": _presentation_number(workload.get("vm_count")),
+        "editable-current-powered-on": _presentation_number(workload.get("powered_on_count")),
+        "editable-current-powered-off": _presentation_number(workload.get("powered_off_count")),
+        "editable-current-vcpus": _presentation_number(workload.get("total_vcpus")),
+        "editable-current-vram": _presentation_number(workload.get("total_memory_gb")),
+        "editable-current-storage": workload_storage,
         "editable-total-vms": _presentation_number(workload.get("vm_count")),
         "editable-total-vms-powered-on": _presentation_number(workload.get("powered_on_count")),
         "editable-total-vms-powered-off": _presentation_number(workload.get("powered_off_count")),
+        "editable-total-powered-on": _presentation_number(workload.get("powered_on_count")),
+        "editable-total-powered-off": _presentation_number(workload.get("powered_off_count")),
         "editable-total-vcpus": _presentation_number(workload.get("total_vcpus")),
         "editable-total-vram": _presentation_number(workload.get("total_memory_gb")),
         "editable-total-storage": workload_storage,
+        "editable-cpu-contention-ratio": _presentation_cpu_contention_ratio(policy),
+        "editable-methodology-storage-type": storage_type,
         "editable-analysis-day": datetime.fromisoformat(generated_at).strftime("%d"),
         "editable-analysis-year": datetime.fromisoformat(generated_at).strftime("%Y"),
-        "editable-top-sddcs": "1" if selected_ocvs else "0",
-        "editable-top-clusters": _presentation_number(selected_ocvs.get("cluster_count")),
-        "editable-top-hosts": host_count,
-        "editable-top-shape": host_shape,
-        "editable-top-storage": infrastructure_storage,
-        "editable-left-sddcs": "1" if selected_ocvs else "0",
-        "editable-left-clusters": _presentation_number(selected_ocvs.get("cluster_count")),
-        "editable-left-hosts": host_count,
-        "editable-left-shape": host_shape,
-        "editable-left-storage": infrastructure_storage,
+        "editable-ocvs-sddcs": "1" if selected_summary else "0",
+        "editable-ocvs-clusters": _presentation_number(selected_summary.get("cluster_count")),
+        "editable-ocvs-hosts": host_count,
+        "editable-ocvs-shape": host_shape,
+        "editable-ocvs-storage": infrastructure_storage,
+        "editable-ocvs-storage-type": storage_type,
         "editable-production-hosts": host_count,
         "editable-production-shape": host_shape,
-        "editable-production-storage": infrastructure_storage,
+        "editable-ocvs-production-hosts": host_count,
+        "editable-ocvs-production-shape": f"x {host_shape}",
+        "editable-ocvs-production-storage": infrastructure_storage,
+        "editable-native-vms": _presentation_number(native_totals["vms"] or native_summary.get("vm_count")),
+        "editable-native-ocpus": _presentation_number(native_totals["ocpus"] or native_summary.get("total_cpus")),
+        "editable-native-vram": _presentation_number(native_totals["ram_gb"] or native_summary.get("total_memory_gb")),
+        "editable-native-storage": _presentation_tb_number(native_totals["storage_gb"] or native_summary.get("total_provisioned_gb")),
+        "editable-native-total-vms": _presentation_number(native_totals["vms"] or native_summary.get("vm_count")),
+        "editable-native-total-ocpus": _presentation_number(native_totals["ocpus"] or native_summary.get("total_cpus")),
+        "editable-native-total-vram": _presentation_number(native_totals["ram_gb"] or native_summary.get("total_memory_gb")),
+        "editable-native-storage-vm-count": _presentation_number(native_totals["vms"] or native_summary.get("vm_count")),
+        "editable-native-total-vpus": _presentation_number(native_totals["vpus"] or native_summary.get("total_vpus")),
+        "editable-native-total-storage": _presentation_tb_number(native_totals["storage_gb"] or native_summary.get("total_provisioned_gb")),
     }
+    for row_index in range(3):
+        display_row = row_index + 1
+        replacements.update({
+            f"editable-native-shape-row-{display_row}": str(mix_value(visible_shape_mix, row_index, "shape")),
+            f"editable-native-shape-vms-row-{display_row}": mix_number(visible_shape_mix, row_index, "vms"),
+            f"editable-native-shape-ocpus-row-{display_row}": mix_number(visible_shape_mix, row_index, "ocpus"),
+            f"editable-native-shape-ram-row-{display_row}": mix_number(visible_shape_mix, row_index, "ram_gb"),
+            f"editable-native-vpu-label-row-{display_row}": str(mix_value(visible_vpu_mix, row_index, "vpu")),
+            f"editable-native-vpu-vms-row-{display_row}": mix_number(visible_vpu_mix, row_index, "vms"),
+            f"editable-native-vpu-total-row-{display_row}": mix_number(visible_vpu_mix, row_index, "total_vpu"),
+            f"editable-native-vpu-storage-row-{display_row}": mix_tb(visible_vpu_mix, row_index, "storage_gb"),
+        })
+        replacements.update({
+            f"editable-hybrid-native-shape-row-{display_row}": str(mix_value(visible_shape_mix, row_index, "shape")),
+            f"editable-hybrid-native-shape-vms-row-{display_row}": mix_number(visible_shape_mix, row_index, "vms"),
+            f"editable-hybrid-native-shape-ocpus-row-{display_row}": mix_number(visible_shape_mix, row_index, "ocpus"),
+            f"editable-hybrid-native-shape-ram-row-{display_row}": mix_number(visible_shape_mix, row_index, "ram_gb"),
+            f"editable-hybrid-native-vpu-label-row-{display_row}": str(mix_value(visible_vpu_mix, row_index, "vpu")),
+            f"editable-hybrid-native-vpu-vms-row-{display_row}": mix_number(visible_vpu_mix, row_index, "vms"),
+            f"editable-hybrid-native-vpu-total-row-{display_row}": mix_number(visible_vpu_mix, row_index, "total_vpu"),
+            f"editable-hybrid-native-vpu-storage-row-{display_row}": mix_tb(visible_vpu_mix, row_index, "storage_gb"),
+        })
     tokens = {
         "CUSTOMER": customer_name or "Not provided", "ASSESSMENT_DATE": date_value,
         "SCENARIO": str(business_scenario.get("name") or "Assessment"),
@@ -9965,6 +10128,16 @@ def step3() -> str:
     )
 
 
+@app.post("/step4/presentation-scenario")
+def save_presentation_scenario() -> tuple[str, int]:
+    """Persist the Scenario Workspace choice independently of the save form."""
+    scenario = str(request.form.get("scenario", "")).strip().lower()
+    if scenario not in {"native", "ocvs", "hybrid"}:
+        return ("", 400)
+    session["presentation_scenario"] = scenario
+    return ("", 204)
+
+
 @app.route("/step4", methods=["GET", "POST"])
 def step4() -> str:
     _cleanup_legacy_session_keys()
@@ -10292,6 +10465,8 @@ def step4() -> str:
 
     export_format: str | None = None
     active_scenario = requested_scenario
+    if active_scenario in {"native", "ocvs", "hybrid"}:
+        session["presentation_scenario"] = active_scenario
     native_editor_query = normalize_native_editor_query(
         request.form if request.method == "POST" else request.args
     )
@@ -10315,6 +10490,8 @@ def step4() -> str:
     if request.method == "POST":
         action = str(submitted_step4_scalars["action"])
         active_scenario = str(submitted_step4_scalars["active_scenario"])
+        if active_scenario in {"native", "ocvs", "hybrid"}:
+            session["presentation_scenario"] = active_scenario
         continue_to_results = request.form.get("continue_to_results") == "1"
         submitted_native_settings, native_field_errors = parse_native_editor_page_fields(
             request.form,
@@ -10915,9 +11092,17 @@ def step4() -> str:
         if not business_scenario:
             flash("Select a Business Scenario in Setup before generating a presentation.", "error")
             return redirect(step4_tab_redirect("price"))
+        submitted_presentation_scenario = str(
+            request.form.get("presentation_scenario", "")
+        ).strip().lower()
+        if submitted_presentation_scenario not in {"native", "ocvs", "hybrid"}:
+            submitted_presentation_scenario = str(
+                session.get("presentation_scenario", "")
+            ).strip().lower()
         template_path, presentation_scenario_name = resolve_presentation_template(
             business_scenario,
             app_state.get("assessor_recommendation", ""),
+            submitted_presentation_scenario,
         )
         if not template_path.is_file():
             flash(f"The presentation template {template_path.name} is not available in this installation.", "error")
@@ -10926,14 +11111,27 @@ def step4() -> str:
         scenario_label = customer_file_slug(presentation_scenario_name)
         filename = build_export_filename(customer_name, f"{scenario_label}_presentation", "pptx")
         export_path = PRESENTATION_EXPORTS_DIR / filename
+        setup_scenario_id = str(business_scenario.get("id", "")).strip().lower()
+        presentation_scenario_id = (
+            setup_scenario_id
+            if setup_scenario_id in {"capacity", "dr"}
+            else submitted_presentation_scenario or setup_scenario_id
+        )
         build_customer_presentation_pptx(
             template_path=template_path,
             output_path=export_path,
             customer_name=customer_name,
-            business_scenario={**business_scenario, "name": presentation_scenario_name},
+            business_scenario={
+                **business_scenario,
+                # The selected Step 3 workspace is the export source of truth.
+                # Dedicated Capacity/DR exports retain their Setup scenario IDs.
+                "id": presentation_scenario_id,
+                "name": presentation_scenario_name,
+            },
             analysis=analysis,
             ocvs_price=ocvs_price,
             generated_at=generated_at,
+            native_vm_rows=vm_rows,
         )
         session["last_presentation_file"] = str(export_path.resolve())
         return send_file(

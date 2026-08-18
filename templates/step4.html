@@ -1457,6 +1457,16 @@
         if (activeScenarioInput) {
           activeScenarioInput.value = targetId;
         }
+        if (['native', 'ocvs', 'hybrid'].includes(targetId)) {
+          window.localStorage.setItem('migration-assessment:presentation-scenario', targetId);
+          window.fetch('{{ url_for("save_presentation_scenario") }}', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: `scenario=${encodeURIComponent(targetId)}`,
+            keepalive: true,
+          }).catch(() => {});
+        }
         const mainTitleText = mainTitles[targetId] || 'Migration Paths';
         if (mainTitle) {
           mainTitle.textContent = mainTitleText;

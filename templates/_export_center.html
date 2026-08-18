@@ -61,7 +61,23 @@
     <form method="post" action="{{ url_for('step4') }}">
       <input type="hidden" name="action" value="generate_presentation" />
       <input type="hidden" name="active_scenario" value="price" />
+      <label class="results-export__presentation-select">
+        <span>Presentation scenario</span>
+        <select name="presentation_scenario" data-presentation-scenario>
+          <option value="native">OCI Compute Migration</option>
+          <option value="ocvs">Oracle Cloud VMware Solution</option>
+          <option value="hybrid">OCI Hybrid</option>
+        </select>
+      </label>
       <button type="submit" class="results-button">Generate Presentation</button>
     </form>
   </div>
 </section>
+<script>
+  (function () {
+    const field = document.querySelector('[data-presentation-scenario]');
+    if (!field) return;
+    const scenario = window.localStorage.getItem('migration-assessment:presentation-scenario');
+    if (['native', 'ocvs', 'hybrid'].includes(scenario)) field.value = scenario;
+  })();
+</script>
